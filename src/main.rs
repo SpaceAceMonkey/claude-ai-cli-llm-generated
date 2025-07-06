@@ -10,7 +10,6 @@ use tokio;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Your Anthropic API key
-    /// sk-ant-api04-etc-etc-etc-etc
     #[arg(short, long, env = "ANTHROPIC_API_KEY")]
     api_key: String,
 
