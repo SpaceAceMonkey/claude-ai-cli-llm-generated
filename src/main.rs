@@ -163,6 +163,9 @@ async fn main() -> Result<()> {
                     }
                 }
                 
+                // Add a small buffer to ensure the last line is visible
+                total_visual_lines += 1;
+                
                 if total_visual_lines > chat_height {
                     chat_scroll_offset = total_visual_lines - chat_height;
                 } else {
@@ -452,6 +455,52 @@ async fn main() -> Result<()> {
                             cursor_position += 1;
                         }
                     }
+                    KeyCode::Up if modifiers.contains(KeyModifiers::CONTROL) || 
+                                   modifiers.contains(KeyModifiers::ALT) || 
+                                   modifiers.contains(KeyModifiers::SHIFT) => {
+                        // Scroll chat up one line
+                        if chat_scroll_offset > 0 {
+                            chat_scroll_offset -= 1;
+                            auto_scroll = false;
+                        }
+                    }
+                    KeyCode::Down if modifiers.contains(KeyModifiers::CONTROL) || 
+                                     modifiers.contains(KeyModifiers::ALT) || 
+                                     modifiers.contains(KeyModifiers::SHIFT) => {
+                        // Scroll chat down one line
+                        let chat_height = terminal.size()?.height.saturating_sub(8);
+                        
+                        // Calculate max scroll
+                        let mut chat_spans = Vec::new();
+                        for msg in &client.messages {
+                            chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
+                        }
+                        
+                        if !chat_spans.is_empty() {
+                            let chat_width = terminal.size()?.width.saturating_sub(4);
+                            let mut total_visual_lines: u16 = 0;
+                            
+                            for line in &chat_spans {
+                                let line_width = line.width();
+                                if line_width == 0 {
+                                    total_visual_lines += 1;
+                                } else {
+                                    let wrapped_lines = ((line_width as u16 + chat_width - 1) / chat_width).max(1);
+                                    total_visual_lines += wrapped_lines;
+                                }
+                            }
+                            
+                            let max_scroll = total_visual_lines.saturating_sub(chat_height);
+                            if chat_scroll_offset < max_scroll {
+                                chat_scroll_offset += 1;
+                            }
+                            
+                            // Re-enable auto-scroll if we're at the bottom
+                            if chat_scroll_offset >= max_scroll {
+                                auto_scroll = true;
+                            }
+                        }
+                    }
                     KeyCode::Up => {
                         let input_width = terminal.size()?.width.saturating_sub(4) as usize;
                         let is_multiline = input.contains('\n') || input.len() > input_width;
@@ -491,7 +540,7 @@ async fn main() -> Result<()> {
                     KeyCode::PageUp => {
                         // Scroll chat up
                         if chat_scroll_offset > 0 {
-                            let page_size = terminal.size()?.height.saturating_sub(10); // leave some context
+                            let page_size = terminal.size()?.height.saturating_sub(12); // leave 2-3 lines for context
                             chat_scroll_offset = chat_scroll_offset.saturating_sub(page_size);
                             auto_scroll = false; // Disable auto-scroll when user manually scrolls
                         }
@@ -499,7 +548,7 @@ async fn main() -> Result<()> {
                     KeyCode::PageDown => {
                         // Scroll chat down
                         let chat_height = terminal.size()?.height.saturating_sub(8); // rough estimate
-                        let page_size = chat_height.saturating_sub(2);
+                        let page_size = chat_height.saturating_sub(4); // leave 2-3 lines for context
                         
                         // Calculate max scroll based on content
                         let mut chat_spans = Vec::new();
@@ -560,7 +609,7 @@ async fn main() -> Result<()> {
         // Update progress animation for waiting state
         if waiting {
             progress_i += 1;
-            tokio::time::sleep(Duration::from_millis(50)).await;
+            tokio::time::sleep(Duration::from_millis(10)).await; // Reduced from 50ms to 10ms
         }
 
         // In simulate mode, we can add additional behavior if needed
