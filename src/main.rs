@@ -118,10 +118,22 @@ async fn main() -> Result<()> {
             // Calculate proper scroll offset if auto_scroll is enabled
             if auto_scroll && !chat_spans.is_empty() {
                 let chat_height = layout[0].height.saturating_sub(2); // subtract borders
-                let total_lines = chat_spans.len() as u16;
+                let chat_width = layout[0].width.saturating_sub(2); // subtract borders
                 
-                if total_lines > chat_height {
-                    chat_scroll_offset = total_lines - chat_height;
+                // Calculate the actual number of visual lines after wrapping
+                let mut total_visual_lines: u16 = 0;
+                for line in &chat_spans {
+                    let line_width = line.width() as u16;
+                    if line_width > chat_width {
+                        // This line will wrap - calculate how many visual lines it needs
+                        total_visual_lines += (line_width + chat_width - 1) / chat_width;
+                    } else {
+                        total_visual_lines += 1;
+                    }
+                }
+                
+                if total_visual_lines > chat_height {
+                    chat_scroll_offset = total_visual_lines - chat_height;
                 } else {
                     chat_scroll_offset = 0;
                 }
@@ -320,10 +332,22 @@ async fn main() -> Result<()> {
                                     // Calculate proper scroll offset if auto_scroll is enabled
                                     if auto_scroll && !chat_spans.is_empty() {
                                         let chat_height = layout[0].height.saturating_sub(2); // subtract borders
-                                        let total_lines = chat_spans.len() as u16;
+                                        let chat_width = layout[0].width.saturating_sub(2); // subtract borders
+                    
+                                        // Calculate the actual number of visual lines after wrapping
+                                        let mut total_visual_lines: u16 = 0;
+                                        for line in &chat_spans {
+                                            let line_width = line.width() as u16;
+                                            if line_width > chat_width {
+                                                // This line will wrap - calculate how many visual lines it needs
+                                                total_visual_lines += (line_width + chat_width - 1) / chat_width;
+                                            } else {
+                                                total_visual_lines += 1;
+                                            }
+                                        }
                                         
-                                        if total_lines > chat_height {
-                                            chat_scroll_offset = total_lines - chat_height;
+                                        if total_visual_lines > chat_height {
+                                            chat_scroll_offset = total_visual_lines - chat_height;
                                         } else {
                                             chat_scroll_offset = 0;
                                         }
@@ -424,14 +448,25 @@ async fn main() -> Result<()> {
                             .split(size);
                         
                         let chat_height = layout[0].height.saturating_sub(2);
+                        let chat_width = layout[0].width.saturating_sub(2);
                         let mut chat_spans = Vec::new();
                         for msg in &client.messages {
                             chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
                         }
-                        let total_lines = chat_spans.len() as u16;
-                        
-                        let max_scroll = if total_lines > chat_height {
-                            total_lines - chat_height
+
+                        // Calculate visual lines with wrapping
+                        let mut total_visual_lines: u16 = 0;
+                        for line in &chat_spans {
+                            let line_width = line.width() as u16;
+                            if line_width > chat_width {
+                                total_visual_lines += (line_width + chat_width - 1) / chat_width;
+                            } else {
+                                total_visual_lines += 1;
+                            }
+                        }
+
+                        let max_scroll = if total_visual_lines > chat_height {
+                            total_visual_lines - chat_height
                         } else {
                             0
                         };
