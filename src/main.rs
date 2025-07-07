@@ -76,7 +76,6 @@ async fn main() -> Result<()> {
     // Feature flag constants
     const SCROLL_ON_USER_INPUT: bool = true;  // Feature flag for scrolling on user input
     const SCROLL_ON_API_RESPONSE: bool = true; // Feature flag for scrolling on API response
-    const SHIFT_ENTER_SENDS: bool = false;  // false = Shift+Enter inserts newline, true = Shift+Enter sends message
 
     // Setup TUI
     enable_raw_mode()?;
@@ -198,9 +197,9 @@ async fn main() -> Result<()> {
             }
 
             let input_title = if SHIFT_ENTER_SENDS {
-                "Input (Shift/Alt+Enter to send)"
+                "Input (Shift/Alt+Enter to send, Enter for newline)"
             } else {
-                "Input (Ctrl+Enter to send, Shift/Alt+Enter for newline)"
+                "Input (Enter to send, Shift/Alt+Enter for newline)"
             };
             let input_bar = Paragraph::new(Text::from(input_lines))
                 .block(Block::default().borders(Borders::ALL).title(input_title))
