@@ -1,29 +1,31 @@
+mod api;
+mod client;
+mod syntax;
+mod tui;
+
 use anyhow::{Context, Result};
 use clap::Parser;
+use client::ConversationClient;
+use api::{ApiRequest, ApiResponse, ErrorResponse, Message};
 use reqwest::Client;
-use rustyline::Editor;
-use serde::{Deserialize, Serialize};
-use std::io::Write;
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use std::thread;
-use std::time::Duration;
-use tokio;
-
 use ratatui::{
     backend::CrosstermBackend,
     Terminal,
     widgets::{Block, Borders, Paragraph, Wrap},
     layout::{Layout, Constraint, Direction},
-    style::{Style as TuiStyle, Color as TuiColor},
 };
 use ratatui::text::{Span, Line, Text};
-use ratatui::style::Stylize;
-
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     execute,
 };
+use std::io::Write;
+use std::thread;
+use std::time::Duration;
+use tui::format_message_for_tui;
+use rustyline::Editor;
+use futures::future::FutureExt;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -44,224 +46,6 @@ struct Args {
     /// Temperature (0.0 to 1.0)
     #[arg(long, default_value = "0.7")]
     temperature: f32,
-}
-
-#[derive(Serialize, Debug, Clone)]
-struct Message {
-    role: String,
-    content: String,
-}
-
-#[derive(Serialize, Debug)]
-struct ApiRequest {
-    model: String,
-    max_tokens: u32,
-    temperature: f32,
-    messages: Vec<Message>,
-}
-
-#[derive(Deserialize, Debug)]
-struct ContentBlock {
-    #[serde(rename = "type")]
-    content_type: String,
-    text: String,
-}
-
-#[derive(Deserialize, Debug)]
-#[allow(dead_code)]
-struct ApiResponse {
-    id: String,
-    #[serde(rename = "type")]
-    response_type: String,
-    role: String,
-    content: Vec<ContentBlock>,
-    model: String,
-    stop_reason: Option<String>,
-    usage: Usage,
-}
-
-#[derive(Deserialize, Debug)]
-struct Usage {
-    input_tokens: u32,
-    output_tokens: u32,
-}
-
-#[derive(Deserialize, Debug)]
-struct ErrorResponse {
-    error: ErrorDetail,
-}
-
-#[derive(Deserialize, Debug)]
-struct ErrorDetail {
-    #[serde(rename = "type")]
-    error_type: String,
-    message: String,
-}
-
-#[derive(Clone)]
-struct ConversationClient {
-    client: Client,
-    api_key: String,
-    model: String,
-    max_tokens: u32,
-    temperature: f32,
-    messages: Vec<Message>,
-    total_input_tokens: u32,
-    total_output_tokens: u32,
-}
-
-impl ConversationClient {
-    fn new(api_key: String, model: String, max_tokens: u32, temperature: f32) -> Self {
-        Self {
-            client: Client::new(),
-            api_key,
-            model,
-            max_tokens,
-            temperature,
-            messages: Vec::new(),
-            total_input_tokens: 0,
-            total_output_tokens: 0,
-        }
-    }
-
-    async fn send_message(&mut self, user_input: &str) -> Result<String> {
-        self.messages.push(Message {
-            role: "user".to_string(),
-            content: user_input.to_string(),
-        });
-
-        let request = ApiRequest {
-            model: self.model.clone(),
-            max_tokens: self.max_tokens,
-            temperature: self.temperature,
-            messages: self.messages.clone(),
-        };
-
-        let response = self
-            .client
-            .post("https://api.anthropic.com/v1/messages")
-            .header("Content-Type", "application/json")
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", "2023-06-01")
-            .json(&request)
-            .send()
-            .await
-            .context("Failed to send request to API")?;
-
-        let status = response.status();
-        let response_text = response.text().await?;
-
-        if !status.is_success() {
-            let error_response: ErrorResponse = serde_json::from_str(&response_text)
-                .context("Failed to parse error response")?;
-            anyhow::bail!(
-                "API Error ({}): {}",
-                error_response.error.error_type,
-                error_response.error.message
-            );
-        }
-
-        let api_response: ApiResponse = serde_json::from_str(&response_text)
-            .context("Failed to parse API response")?;
-
-        // Track tokens
-        self.total_input_tokens += api_response.usage.input_tokens;
-        self.total_output_tokens += api_response.usage.output_tokens;
-
-        let assistant_response = api_response
-            .content
-            .iter()
-            .filter(|block| block.content_type == "text")
-            .map(|block| block.text.as_str())
-            .collect::<Vec<_>>()
-            .join("");
-
-        self.messages.push(Message {
-            role: "assistant".to_string(),
-            content: assistant_response.clone(),
-        });
-
-        Ok(assistant_response)
-    }
-
-    fn total_tokens(&self) -> u32 {
-        self.total_input_tokens + self.total_output_tokens
-    }
-
-    fn clear_conversation(&mut self) {
-        self.messages.clear();
-        self.total_input_tokens = 0;
-        self.total_output_tokens = 0;
-    }
-}
-
-use syntect::easy::HighlightLines;
-use syntect::highlighting::{ThemeSet, Style};
-use syntect::parsing::SyntaxSet;
-use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
-use futures::future::FutureExt;
-
-fn highlight_code_block(code: &str, language: &str) -> String {
-    let ps = SyntaxSet::load_defaults_newlines();
-    let ts = ThemeSet::load_defaults();
-    let syntax = ps.find_syntax_by_token(language).unwrap_or_else(|| ps.find_syntax_plain_text());
-    let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
-    let mut highlighted = String::new();
-    for line in LinesWithEndings::from(code) {
-        let ranges: Vec<(Style, &str)> = h.highlight_line(line, &ps).unwrap();
-        highlighted.push_str(&as_24_bit_terminal_escaped(&ranges[..], false));
-    }
-    highlighted
-}
-
-fn format_message_for_tui(role: &str, content: &str) -> Vec<Line<'static>> {
-    let mut lines = Vec::new();
-    let (role_color, _) = match role {
-        "assistant" => (TuiColor::Cyan, "\x1b[0m"),
-        "user" => (TuiColor::Magenta, "\x1b[0m"),
-        _ => (TuiColor::Yellow, "\x1b[0m"),
-    };
-
-    let mut in_code = false;
-    let mut code_lang = "rust";
-    let mut code_buf = String::new();
-
-    for line in content.lines() {
-        if line.trim_start().starts_with("```") {
-            if in_code {
-                let highlighted = highlight_code_block(&code_buf, code_lang);
-                for code_line in highlighted.lines() {
-                    lines.push(Line::from(Span::raw(code_line.to_string())));
-                }
-                code_buf.clear();
-                in_code = false;
-            } else {
-                let after = line.trim_start().trim_start_matches("```").trim();
-                code_lang = if !after.is_empty() { after } else { "rust" };
-                in_code = true;
-            }
-            continue;
-        }
-        if in_code {
-            code_buf.push_str(line);
-            code_buf.push('\n');
-        } else {
-            lines.push(Line::from(vec![
-                Span::styled(
-                    format!("[{}]: ", role),
-                    TuiStyle::default().fg(role_color).bold(),
-                ),
-                Span::raw(line.to_string()),
-            ]));
-        }
-    }
-    if in_code && !code_buf.is_empty() {
-        let highlighted = highlight_code_block(&code_buf, code_lang);
-        for code_line in highlighted.lines() {
-            lines.push(Line::from(Span::raw(code_line.to_string())));
-        }
-    }
-    lines
 }
 
 #[tokio::main]
