@@ -1,7 +1,11 @@
 [package]
-name = "chatgpt_client"
-version = "0.1.0"
+name = "claude_ai_cli_llm_generated"
+version = "0.2.1"
 edition = "2021"
+
+[[bin]]
+name = "claudecli"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1"

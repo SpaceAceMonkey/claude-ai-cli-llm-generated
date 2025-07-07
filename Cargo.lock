@@ -214,25 +214,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
 
 [[package]]
-name = "chatgpt_client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "arboard",
- "base64 0.21.7",
- "clap",
- "crossterm",
- "futures",
- "ratatui",
- "reqwest",
- "rustyline",
- "serde",
- "serde_json",
- "syntect",
- "tokio",
-]
-
-[[package]]
 name = "clap"
 version = "4.5.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -271,6 +252,25 @@ name = "clap_lex"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b94f61472cee1439c0b966b47e3aca9ae07e45d070759512cd390ea2bebc6675"
+
+[[package]]
+name = "claude_ai_cli_llm_generated"
+version = "0.2.1"
+dependencies = [
+ "anyhow",
+ "arboard",
+ "base64 0.21.7",
+ "clap",
+ "crossterm",
+ "futures",
+ "ratatui",
+ "reqwest",
+ "rustyline",
+ "serde",
+ "serde_json",
+ "syntect",
+ "tokio",
+]
 
 [[package]]
 name = "clipboard-win"
