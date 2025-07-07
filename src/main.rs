@@ -608,8 +608,15 @@ async fn main() -> Result<()> {
 
         // Update progress animation for waiting state
         if waiting {
-            progress_i += 1;
-            tokio::time::sleep(Duration::from_millis(10)).await; // Reduced from 50ms to 10ms
+            // Slow down progress animation - only increment every 4th iteration
+            static mut FRAME_COUNTER: u32 = 0;
+            unsafe {
+                FRAME_COUNTER += 1;
+                if FRAME_COUNTER % 4 == 0 {
+                    progress_i += 1;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
 
         // In simulate mode, we can add additional behavior if needed
