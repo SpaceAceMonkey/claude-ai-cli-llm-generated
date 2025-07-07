@@ -2,12 +2,15 @@ mod api;
 mod client;
 mod syntax;
 mod tui;
+mod app;
+mod config;
+mod utils;
+mod handlers;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::Parser;
 use client::ConversationClient;
-use api::{ApiRequest, ApiResponse, ErrorResponse, Message};
-use reqwest::Client;
+use api::Message;  // Only keep Message, remove unused API types
 use ratatui::{
     backend::CrosstermBackend,
     Terminal,
@@ -20,12 +23,26 @@ use crossterm::{
     terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     execute,
 };
+use handlers::api::send_message_to_api;
+use tokio::sync::mpsc;
 
-use std::thread;
+// Remove unused imports: app::AppState, config::*, scroll::*
+use config::{SCROLL_ON_USER_INPUT, SCROLL_ON_API_RESPONSE, SHIFT_ENTER_SENDS, PROGRESS_FRAMES};
+use utils::text::*;  // Keep text utilities
+use handlers::history::{navigate_history_up, navigate_history_down};
+
+// Remove unused imports: std::thread
 use std::time::Duration;
 use tui::format_message_for_tui;
 use rustyline::Editor;
-use rustyline::history::History;
+// Remove unused import: rustyline::history::History
+
+// Remove the unused SHOW_DEBUG_MESSAGES constant (line 69):
+// const SHOW_DEBUG_MESSAGES: bool = true;  // Remove this line
+
+// Change the mutable progress_frames to use the one from config (line 91):
+// Remove: let progress_frames = ["    ", ".   ", "..  ", "... ", "...."];
+// It's already imported from config::PROGRESS_FRAMES
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -46,6 +63,10 @@ struct Args {
     /// Temperature (0.0 to 1.0)
     #[arg(long, default_value = "0.7")]
     temperature: f32,
+
+    /// Simulate API calls without actually sending requests
+    #[arg(long)]
+    simulate: bool,
 }
 
 #[tokio::main]
@@ -55,6 +76,7 @@ async fn main() -> Result<()> {
     // Feature flag constants
     const SCROLL_ON_USER_INPUT: bool = true;  // Feature flag for scrolling on user input
     const SCROLL_ON_API_RESPONSE: bool = true; // Feature flag for scrolling on API response
+    const SHIFT_ENTER_SENDS: bool = false;  // false = Shift+Enter inserts newline, true = Shift+Enter sends message
 
     // Setup TUI
     enable_raw_mode()?;
@@ -69,13 +91,13 @@ async fn main() -> Result<()> {
         args.max_tokens,
         args.temperature,
     );
+    let simulate_mode = args.simulate;  // Store the flag value
 
     let mut rl = Editor::<(), rustyline::history::DefaultHistory>::new().unwrap();
     let mut input = String::new();
     let mut status = String::new();
     let mut waiting = false;
     let mut progress_i = 0;
-    let progress_frames = ["    ", ".   ", "..  ", "... ", "...."];
     let mut history_index: Option<usize> = None;
     let mut chat_scroll_offset: u16 = 0;
     let mut auto_scroll = true;
@@ -84,6 +106,10 @@ async fn main() -> Result<()> {
     // New state variables
     let mut cursor_position: usize = 0;  // Track cursor position in input
     let mut input_scroll_offset: u16 = 0;  // Track scroll position for input
+    let mut input_draft: Option<String> = None;  // Save current input when browsing history
+
+    // Channel for API responses
+    let (tx, mut rx) = mpsc::channel::<(String, u32, u32, Vec<Message>)>(10);
 
     loop {
         // Check for new messages BEFORE drawing
@@ -124,15 +150,16 @@ async fn main() -> Result<()> {
                 let chat_height = layout[0].height.saturating_sub(2); // subtract borders
                 let chat_width = layout[0].width.saturating_sub(2); // subtract borders
                 
-                // Calculate the actual number of visual lines after wrapping
+                // Calculate total visual lines after wrapping
                 let mut total_visual_lines: u16 = 0;
                 for line in &chat_spans {
-                    let line_width = line.width() as u16;
-                    if line_width > chat_width {
-                        // This line will wrap - calculate how many visual lines it needs
-                        total_visual_lines += (line_width + chat_width - 1) / chat_width;
+                    let line_width = line.width();
+                    if line_width == 0 {
+                        total_visual_lines += 1; // Empty line
                     } else {
-                        total_visual_lines += 1;
+                        // Calculate how many visual lines this will take after wrapping
+                        let wrapped_lines = ((line_width as u16 + chat_width - 1) / chat_width).max(1);
+                        total_visual_lines += wrapped_lines;
                     }
                 }
                 
@@ -144,8 +171,13 @@ async fn main() -> Result<()> {
             }
 
             // Chat/messages area
+            let chat_title = if simulate_mode {
+                "Conversation (SIMULATE MODE)"
+            } else {
+                "Conversation"
+            };
             let chat = Paragraph::new(Text::from(chat_spans))
-                .block(Block::default().borders(Borders::ALL).title("Conversation"))
+                .block(Block::default().borders(Borders::ALL).title(chat_title))
                 .wrap(Wrap { trim: false })
                 .scroll((chat_scroll_offset, 0));
             f.render_widget(chat, layout[0]);
@@ -156,14 +188,19 @@ async fn main() -> Result<()> {
             let input_height = layout[1].height.saturating_sub(2); // subtract borders
 
             // Auto-scroll input to keep cursor visible
-            if cursor_line >= input_scroll_offset as usize + input_height as usize {
+            if cursor_line >= (input_scroll_offset as usize + input_height as usize) {
                 input_scroll_offset = (cursor_line + 1).saturating_sub(input_height as usize) as u16;
             } else if cursor_line < input_scroll_offset as usize {
                 input_scroll_offset = cursor_line as u16;
             }
 
+            let input_title = if SHIFT_ENTER_SENDS {
+                "Input (Shift/Alt+Enter to send)"
+            } else {
+                "Input (Ctrl+Enter to send, Shift/Alt+Enter for newline)"
+            };
             let input_bar = Paragraph::new(Text::from(input_lines))
-                .block(Block::default().borders(Borders::ALL).title("Input"))
+                .block(Block::default().borders(Borders::ALL).title(input_title))
                 .wrap(Wrap { trim: false })
                 .scroll((input_scroll_offset, 0));
             f.render_widget(input_bar, layout[1]);
@@ -193,7 +230,7 @@ async fn main() -> Result<()> {
             let status_text = if waiting {
                 format!(
                     "Waiting for Claude {}",
-                    progress_frames[progress_i % progress_frames.len()]
+                    PROGRESS_FRAMES[progress_i % PROGRESS_FRAMES.len()]  // Use PROGRESS_FRAMES from config
                 )
             } else {
                 status.clone()
@@ -227,225 +264,174 @@ async fn main() -> Result<()> {
                         break;
                     }
                     KeyCode::Enter => {
-                        if !input.is_empty() {
-                            waiting = true;
-                            status = "Sending to Claude...".to_string();
-                            progress_i = 0;
+                        if modifiers.contains(KeyModifiers::SHIFT) || modifiers.contains(KeyModifiers::ALT) {
+                            if SHIFT_ENTER_SENDS {
+                                // Shift/Alt+Enter sends the message
+                                if !input.is_empty() {
+                                    waiting = true;
+                                    status = "Sending to Claude...".to_string();
+                                    progress_i = 0;
 
-                            let user_input = input.clone();
-                            input.clear();
-                            cursor_position = 0;  // Reset cursor position
-                            history_index = None; // Reset history index
+                                    let user_input = input.clone();
+                                    input.clear();
+                                    cursor_position = 0;
+                                    history_index = None;
+                                    input_draft = None;
 
-                            // Add to rustyline history
-                            rl.add_history_entry(&user_input).ok();
+                                    // Add to rustyline history
+                                    rl.add_history_entry(&user_input).ok();
 
-                            // Immediately add the user message for display
-                            client.messages.push(Message {
-                                role: "user".to_string(),
-                                content: user_input.clone(),
-                            });
+                                    // Add user message
+                                    client.messages.push(Message {
+                                        role: "user".to_string(),
+                                        content: user_input.clone(),
+                                    });
 
-                            // Update the message count tracker to prevent double-detection
-                            last_message_count = client.messages.len();
+                                    // Spawn API call with channel
+                                    let api_key = client.api_key.clone();
+                                    let model = client.model.clone();
+                                    let max_tokens = client.max_tokens;
+                                    let temperature = client.temperature;
+                                    let messages = client.messages.clone();
+                                    let simulate = simulate_mode;
+                                    let tx_clone = tx.clone();
 
-                            // Force auto-scroll if the feature flag is enabled
-                            if SCROLL_ON_USER_INPUT {
-                                auto_scroll = true;
-                            }
-
-                            // Clone what you need for the API call
-                            let messages = client.messages.clone();
-                            let api_key = client.api_key.clone();
-                            let model = client.model.clone();
-                            let max_tokens = client.max_tokens;
-                            let temperature = client.temperature;
-
-                            let mut handle = Box::pin(tokio::spawn(async move {
-                                // Build the request using the messages (already includes the user message)
-                                let request = ApiRequest {
-                                    model: model.clone(),
-                                    max_tokens,
-                                    temperature,
-                                    messages: messages.clone(),
-                                };
-
-                                let client_http = Client::new();
-                                let response = client_http
-                                    .post("https://api.anthropic.com/v1/messages")
-                                    .header("Content-Type", "application/json")
-                                    .header("x-api-key", &api_key)
-                                    .header("anthropic-version", "2023-06-01")
-                                    .json(&request)
-                                    .send()
-                                    .await
-                                    .context("Failed to send request to API")?;
-
-                                let status = response.status();
-                                let response_text = response.text().await?;
-
-                                if !status.is_success() {
-                                    let error_response: ErrorResponse = serde_json::from_str(&response_text)
-                                        .context("Failed to parse error response")?;
-                                    anyhow::bail!(
-                                        "API Error ({}): {}",
-                                        error_response.error.error_type,
-                                        error_response.error.message
-                                    );
-                                }
-
-                                let api_response: ApiResponse = serde_json::from_str(&response_text)
-                                    .context("Failed to parse API response")?;
-
-                                let total_input_tokens = api_response.usage.input_tokens;
-                                let total_output_tokens = api_response.usage.output_tokens;
-                                let mut messages = messages.clone();
-
-                                let assistant_response = api_response
-                                    .content
-                                    .iter()
-                                    .filter(|block| block.content_type == "text")
-                                    .map(|block| block.text.as_str())
-                                    .collect::<Vec<_>>()
-                                    .join("");
-
-                                messages.push(Message {
-                                    role: "assistant".to_string(),
-                                    content: assistant_response.clone(),
-                                });
-
-                                Ok((assistant_response, total_input_tokens, total_output_tokens, messages))
-                            }));
-
-                            loop {
-                                use futures::FutureExt;
-                                if let Some(result) = handle.as_mut().now_or_never() {
-                                    waiting = false;
-                                    match result {
-                                        Ok(Ok((response, input_tokens, output_tokens, messages))) => {
-                                            client.total_input_tokens = input_tokens;
-                                            client.total_output_tokens = output_tokens;
-                                            client.messages = messages;
-                                            status = format!("Received response ({} tokens)", response.len());
-                                        }
-                                        Ok(Err(e)) => {
-                                            status = format!("Error: {}", e);
-                                        }
-                                        Err(e) => {
-                                            status = format!("Task join error: {}", e);
-                                        }
-                                    }
-                                    break;
-                                }
-
-                                // Draw UI with animated progress bar
-                                terminal.draw(|f| {
-                                    let size = f.size();
-                                    let layout = Layout::default()
-                                        .direction(Direction::Vertical)
-                                        .constraints([
-                                            Constraint::Min(3),      // Conversation
-                                            Constraint::Length(6),   // Input (4 lines + 2 for borders)
-                                            Constraint::Length(3),   // Status
-                                        ])
-                                        .split(size);
-
-                                    let mut chat_spans = Vec::new();
-                                    for msg in &client.messages {
-                                        chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
-                                    }
-
-                                    // Calculate proper scroll offset if auto_scroll is enabled
-                                    if auto_scroll && !chat_spans.is_empty() {
-                                        let chat_height = layout[0].height.saturating_sub(2); // subtract borders
-                                        let chat_width = layout[0].width.saturating_sub(2); // subtract borders
-                    
-                                        // Calculate the actual number of visual lines after wrapping
-                                        let mut total_visual_lines: u16 = 0;
-                                        for line in &chat_spans {
-                                            let line_width = line.width() as u16;
-                                            if line_width > chat_width {
-                                                // This line will wrap - calculate how many visual lines it needs
-                                                total_visual_lines += (line_width + chat_width - 1) / chat_width;
-                                            } else {
-                                                total_visual_lines += 1;
+                                    tokio::spawn(async move {
+                                        match send_message_to_api(
+                                            user_input,
+                                            messages,
+                                            api_key,
+                                            model,
+                                            max_tokens,
+                                            temperature,
+                                            simulate,
+                                        ).await {
+                                            Ok((response, input_tokens, outputTokens, updated_messages)) => {
+                                                tx_clone.send((response, input_tokens, outputTokens, updated_messages)).await.ok();
+                                            }
+                                            Err(e) => {
+                                                eprintln!("API Error: {}", e);
                                             }
                                         }
-                                        
-                                        if total_visual_lines > chat_height {
-                                            chat_scroll_offset = total_visual_lines - chat_height;
-                                        } else {
-                                            chat_scroll_offset = 0;
+                                    });
+                                }
+                            } else {
+                                // Shift/Alt+Enter inserts a newline
+                                input.insert(cursor_position, '\n');
+                                cursor_position += 1;
+                            }
+                        } else if modifiers.contains(KeyModifiers::CONTROL) {
+                            // Ctrl+Enter always sends
+                            if !input.is_empty() {
+                                waiting = true;
+                                status = "Sending to Claude...".to_string();
+                                progress_i = 0;
+
+                                let user_input = input.clone();
+                                input.clear();
+                                cursor_position = 0;
+                                history_index = None;
+                                input_draft = None;
+
+                                // Add to rustyline history
+                                rl.add_history_entry(&user_input).ok();
+
+                                // Add user message
+                                client.messages.push(Message {
+                                    role: "user".to_string(),
+                                    content: user_input.clone(),
+                                });
+
+                                // Spawn API call with channel
+                                let api_key = client.api_key.clone();
+                                let model = client.model.clone();
+                                let max_tokens = client.max_tokens;
+                                let temperature = client.temperature;
+                                let messages = client.messages.clone();
+                                let simulate = simulate_mode;
+                                let tx_clone = tx.clone();
+
+                                tokio::spawn(async move {
+                                    match send_message_to_api(
+                                        user_input,
+                                        messages,
+                                        api_key,
+                                        model,
+                                        max_tokens,
+                                        temperature,
+                                        simulate,
+                                    ).await {
+                                        Ok((response, inputTokens, outputTokens, updated_messages)) => {
+                                            tx_clone.send((response, inputTokens, outputTokens, updated_messages)).await.ok();
+                                        }
+                                        Err(e) => {
+                                            eprintln!("API Error: {}", e);
                                         }
                                     }
-                                    
-                                    let chat = Paragraph::new(Text::from(chat_spans))
-                                        .block(Block::default().borders(Borders::ALL).title("Conversation"))
-                                        .wrap(Wrap { trim: false })
-                                        .scroll((chat_scroll_offset, 0));
-                                    f.render_widget(chat, layout[0]);
+                                });
+                            }
+                        } else {
+                            // Regular Enter behavior depends on the feature flag
+                            if SHIFT_ENTER_SENDS {
+                                // Regular Enter inserts a newline
+                                input.insert(cursor_position, '\n');
+                                cursor_position += 1;
+                            } else {
+                                // Regular Enter sends the message
+                                if !input.is_empty() {
+                                    waiting = true;
+                                    status = "Sending to Claude...".to_string();
+                                    progress_i = 0;
 
-                                    // Input area (middle) - with wrapping and scroll
-                                    let input_lines = wrap_text(&input, layout[1].width.saturating_sub(2) as usize);
-                                    let cursor_line = calculate_cursor_line(&input, cursor_position, layout[1].width.saturating_sub(2) as usize);
-                                    let input_height = layout[1].height.saturating_sub(2); // subtract borders
+                                    let user_input = input.clone();
+                                    input.clear();
+                                    cursor_position = 0;
+                                    history_index = None;
+                                    input_draft = None;
 
-                                    // Auto-scroll input to keep cursor visible
-                                    if cursor_line >= input_scroll_offset as usize + input_height as usize {
-                                        input_scroll_offset = (cursor_line + 1).saturating_sub(input_height as usize) as u16;
-                                    } else if cursor_line < input_scroll_offset as usize {
-                                        input_scroll_offset = cursor_line as u16;
-                                    }
+                                    // Add to rustyline history
+                                    rl.add_history_entry(&user_input).ok();
 
-                                    let input_bar = Paragraph::new(Text::from(input_lines))
-                                        .block(Block::default().borders(Borders::ALL).title("Input"))
-                                        .wrap(Wrap { trim: false })
-                                        .scroll((input_scroll_offset, 0));
-                                    f.render_widget(input_bar, layout[1]);
+                                    // Add user message
+                                    client.messages.push(Message {
+                                        role: "user".to_string(),
+                                        content: user_input.clone(),
+                                    });
 
-                                    // Calculate cursor position for rendering
-                                    let (cursor_x, cursor_y) = calculate_cursor_position(
-                                        &input,
-                                        cursor_position,
-                                        layout[1].width.saturating_sub(2) as usize,
-                                        input_scroll_offset as usize,
-                                    );
-                                    f.set_cursor(
-                                        layout[1].x + cursor_x as u16 + 1,
-                                        layout[1].y + cursor_y as u16 + 1,
-                                    );
+                                    // Spawn API call with channel
+                                    let api_key = client.api_key.clone();
+                                    let model = client.model.clone();
+                                    let max_tokens = client.max_tokens;
+                                    let temperature = client.temperature;
+                                    let messages = client.messages.clone();
+                                    let simulate = simulate_mode;
+                                    let tx_clone = tx.clone();
 
-                                    let bottom_chunks = Layout::default()
-                                        .direction(Direction::Horizontal)
-                                        .constraints([
-                                            Constraint::Percentage(70),
-                                            Constraint::Percentage(30),
-                                        ])
-                                        .split(layout[2]);
-
-                                    let status_text = format!(
-                                        "Waiting for Claude {}",
-                                        progress_frames[progress_i % progress_frames.len()]
-                                    );
-                                    let status_bar = Paragraph::new(status_text)
-                                        .block(Block::default().borders(Borders::ALL).title("Status"));
-                                    f.render_widget(status_bar, bottom_chunks[0]);
-
-                                    let token_usage_text = format!(
-                                        "Input tokens: {}, Output tokens: {}, Total tokens: {}",
-                                        client.total_input_tokens,
-                                        client.total_output_tokens,
-                                        client.total_tokens()
-                                    );
-                                    let token_usage = Paragraph::new(token_usage_text)
-                                        .block(Block::default().borders(Borders::ALL).title("Token Usage"));
-                                    f.render_widget(token_usage, bottom_chunks[1]);
-                                })?;
-
-                                progress_i += 1;
-                                tokio::time::sleep(Duration::from_millis(250)).await;
+                                    tokio::spawn(async move {
+                                        match send_message_to_api(
+                                            user_input,
+                                            messages,
+                                            api_key,
+                                            model,
+                                            max_tokens,
+                                            temperature,
+                                            simulate,
+                                        ).await {
+                                            Ok((response, inputTokens, outputTokens, updated_messages)) => {
+                                                tx_clone.send((response, inputTokens, outputTokens, updated_messages)).await.ok();
+                                            }
+                                            Err(e) => {
+                                                eprintln!("API Error: {}", e);
+                                            }
+                                        }
+                                    });
+                                }
                             }
                         }
+                    }
+                    KeyCode::Char('v') if modifiers == KeyModifiers::CONTROL => {
+                        // TODO: Implement proper clipboard handling
+                        // For now, just skip it
                     }
                     KeyCode::Backspace => {
                         if cursor_position > 0 {
@@ -453,22 +439,32 @@ async fn main() -> Result<()> {
                             cursor_position -= 1;
                         }
                     }
+                    KeyCode::Delete => {
+                        input.remove(cursor_position);
+                    }
+                    KeyCode::Left => {
+                        if cursor_position > 0 {
+                            cursor_position -= 1;
+                        }
+                    }
+                    KeyCode::Right => {
+                        if cursor_position < input.len() {
+                            cursor_position += 1;
+                        }
+                    }
                     KeyCode::Up => {
-                        let input_width = terminal.size()?.width.saturating_sub(4) as usize; // rough estimate
+                        let input_width = terminal.size()?.width.saturating_sub(4) as usize;
                         let is_multiline = input.contains('\n') || input.len() > input_width;
                         
                         if is_multiline {
-                            // Move cursor up within the input
                             let new_pos = move_cursor_up(&input, cursor_position, input_width);
                             if new_pos != cursor_position {
                                 cursor_position = new_pos;
                             } else {
-                                // At the top of input, go to history
-                                navigate_history_up(&mut input, &mut cursor_position, &mut history_index, &rl);
+                                navigate_history_up(&mut input, &mut cursor_position, &mut history_index, &mut input_draft, &rl);
                             }
                         } else {
-                            // Single line - directly go to history
-                            navigate_history_up(&mut input, &mut cursor_position, &mut history_index, &rl);
+                            navigate_history_up(&mut input, &mut cursor_position, &mut history_index, &mut input_draft, &rl);
                         }
                     }
                     KeyCode::Down => {
@@ -476,73 +472,14 @@ async fn main() -> Result<()> {
                         let is_multiline = input.contains('\n') || input.len() > input_width;
                         
                         if is_multiline {
-                            // Move cursor down within the input
                             let new_pos = move_cursor_down(&input, cursor_position, input_width);
                             if new_pos != cursor_position {
                                 cursor_position = new_pos;
                             } else {
-                                // At the bottom of input, go to history
-                                navigate_history_down(&mut input, &mut cursor_position, &mut history_index, &rl);
+                                navigate_history_down(&mut input, &mut cursor_position, &mut history_index, &mut input_draft, &rl);
                             }
                         } else {
-                            // Single line - directly go to history
-                            navigate_history_down(&mut input, &mut cursor_position, &mut history_index, &rl);
-                        }
-                    }
-                    KeyCode::PageUp => {
-                        auto_scroll = false; // Disable auto-scroll when manually scrolling
-                        chat_scroll_offset = chat_scroll_offset.saturating_sub(5);
-                    }
-                    KeyCode::PageDown => {
-                        // Calculate max scroll without drawing
-                        let size = terminal.size()?;
-                        let layout = Layout::default()
-                            .direction(Direction::Vertical)
-                            .constraints([
-                                Constraint::Min(3),      // Conversation
-                                Constraint::Length(6),   // Input (4 lines + 2 for borders)
-                                Constraint::Length(3),   // Status
-                            ])
-                            .split(size);
-                        
-                        let chat_height = layout[0].height.saturating_sub(2);
-                        let chat_width = layout[0].width.saturating_sub(2);
-                        let mut chat_spans = Vec::new();
-                        for msg in &client.messages {
-                            chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
-                        }
-
-                        // Calculate visual lines with wrapping
-                        let mut total_visual_lines: u16 = 0;
-                        for line in &chat_spans {
-                            let line_width = line.width() as u16;
-                            if line_width > chat_width {
-                                total_visual_lines += (line_width + chat_width - 1) / chat_width;
-                            } else {
-                                total_visual_lines += 1;
-                            }
-                        }
-
-                        let max_scroll = if total_visual_lines > chat_height {
-                            total_visual_lines - chat_height
-                        } else {
-                            0
-                        };
-                        
-                        let new_offset = chat_scroll_offset.saturating_add(5);
-                        chat_scroll_offset = new_offset.min(max_scroll);
-                        
-                        // If we've reached the bottom, re-enable auto-scroll
-                        if chat_scroll_offset >= max_scroll {
-                            auto_scroll = true;
-                        }
-                    }
-                    KeyCode::Left => {
-                        cursor_position = cursor_position.saturating_sub(1);
-                    }
-                    KeyCode::Right => {
-                        if cursor_position < input.len() {
-                            cursor_position += 1;
+                            navigate_history_down(&mut input, &mut cursor_position, &mut history_index, &mut input_draft, &rl);
                         }
                     }
                     KeyCode::Home => {
@@ -551,171 +488,90 @@ async fn main() -> Result<()> {
                     KeyCode::End => {
                         cursor_position = input.len();
                     }
+                    KeyCode::PageUp => {
+                        // Scroll chat up
+                        if chat_scroll_offset > 0 {
+                            let page_size = terminal.size()?.height.saturating_sub(10); // leave some context
+                            chat_scroll_offset = chat_scroll_offset.saturating_sub(page_size);
+                            auto_scroll = false; // Disable auto-scroll when user manually scrolls
+                        }
+                    }
+                    KeyCode::PageDown => {
+                        // Scroll chat down
+                        let chat_height = terminal.size()?.height.saturating_sub(8); // rough estimate
+                        let page_size = chat_height.saturating_sub(2);
+                        
+                        // Calculate max scroll based on content
+                        let mut chat_spans = Vec::new();
+                        for msg in &client.messages {
+                            chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
+                        }
+                        
+                        if !chat_spans.is_empty() {
+                            let chat_width = terminal.size()?.width.saturating_sub(4);
+                            let mut total_visual_lines: u16 = 0;
+                            
+                            for line in &chat_spans {
+                                let line_width = line.width();
+                                if line_width == 0 {
+                                    total_visual_lines += 1;
+                                } else {
+                                    let wrapped_lines = ((line_width as u16 + chat_width - 1) / chat_width).max(1);
+                                    total_visual_lines += wrapped_lines;
+                                }
+                            }
+                            
+                            let max_scroll = total_visual_lines.saturating_sub(chat_height);
+                            chat_scroll_offset = (chat_scroll_offset + page_size).min(max_scroll);
+                            
+                            // Re-enable auto-scroll if we're at the bottom
+                            if chat_scroll_offset >= max_scroll {
+                                auto_scroll = true;
+                            }
+                        }
+                    }
                     KeyCode::Char(c) => {
                         input.insert(cursor_position, c);
                         cursor_position += 1;
-                    }
-                    KeyCode::F(2) => {
-                        // Clear conversation
-                        client.clear_conversation();
-                        input.clear();
-                        status.clear();
                     }
                     _ => {}
                 }
             }
         }
 
-        // Small sleep to prevent busy waiting when no events
-        thread::sleep(Duration::from_millis(10));
+        // Check for API responses
+        if let Ok((response, input_tokens, output_tokens, updated_messages)) = rx.try_recv() {
+            waiting = false;
+            status = "Ready".to_string();
+            
+            // Update messages
+            // Only add the assistant's response (the last message in updated_messages)
+            if let Some(assistant_msg) = updated_messages.last() {
+                if assistant_msg.role == "assistant" {
+                    client.messages.push(assistant_msg.clone());
+                }
+            }
+            
+            // Update token counts
+            client.total_input_tokens += input_tokens;
+            client.total_output_tokens += output_tokens;
+        }
+
+        // Update progress animation for waiting state
+        if waiting {
+            progress_i += 1;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+
+        // In simulate mode, we can add additional behavior if needed
+        if simulate_mode {
+            // Any simulate-specific behavior can go here
+            // But the progress animation is now handled above for both modes
+        }
     }
 
-    // Cleanup
+    // Cleanup: leave alternate screen and disable raw mode
     disable_raw_mode()?;
-    execute!(std::io::stdout(), LeaveAlternateScreen)?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
-}
-
-// New helper functions
-
-fn wrap_text(text: &str, width: usize) -> Vec<ratatui::text::Line<'static>> {
-    let mut lines = Vec::new();
-    for line in text.lines() {
-        if line.len() <= width {
-            lines.push(ratatui::text::Line::from(line.to_string()));
-        } else {
-            // Wrap long lines
-            let mut start = 0;
-            while start < line.len() {
-                let end = (start + width).min(line.len());
-                lines.push(ratatui::text::Line::from(line[start..end].to_string()));
-                start = end;
-            }
-        }
-    }
-    if lines.is_empty() {
-        lines.push(ratatui::text::Line::from(""));
-    }
-    lines
-}
-
-fn calculate_cursor_line(text: &str, cursor_pos: usize, width: usize) -> usize {
-    let mut line = 0;
-    let mut col = 0;
-    let mut pos = 0;
-    
-    for ch in text.chars() {
-        if pos == cursor_pos {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 0;
-        } else {
-            col += 1;
-            if col >= width {
-                line += 1;
-                col = 0;
-            }
-        }
-        pos += 1;
-    }
-    line
-}
-
-fn calculate_cursor_position(text: &str, cursor_pos: usize, width: usize, scroll_offset: usize) -> (usize, usize) {
-    let mut line: usize = 0;  // Explicit type annotation
-    let mut col: usize = 0;   // Explicit type annotation
-    let mut pos: usize = 0;   // Explicit type annotation
-    
-    for ch in text.chars() {
-        if pos == cursor_pos {
-            break;
-        }
-        if ch == '\n' {
-            line += 1;
-            col = 0;
-        } else {
-            col += 1;
-            if col >= width {
-                line += 1;
-                col = 0;
-            }
-        }
-        pos += 1;
-    }
-    
-    (col, line.saturating_sub(scroll_offset))
-}
-
-fn move_cursor_up(text: &str, cursor_pos: usize, width: usize) -> usize {
-    // Implementation for moving cursor up one visual line
-    // This is simplified - a full implementation would handle wrapped lines properly
-    let line_start = text[..cursor_pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
-    if line_start == 0 {
-        return cursor_pos; // Already at top
-    }
-    let prev_line_start = text[..line_start.saturating_sub(1)].rfind('\n').map(|i| i + 1).unwrap_or(0);
-    let offset: usize = cursor_pos - line_start;  // Explicit type annotation
-    let prev_line_len = line_start.saturating_sub(prev_line_start + 1);
-    prev_line_start + offset.min(prev_line_len)
-}
-
-fn move_cursor_down(text: &str, cursor_pos: usize, width: usize) -> usize {
-    // Implementation for moving cursor down one visual line
-    // This is simplified - a full implementation would handle wrapped lines properly
-    if let Some(next_newline) = text[cursor_pos..].find('\n') {
-        let line_start = text[..cursor_pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
-        let offset: usize = cursor_pos - line_start;  // Explicit type annotation
-        let next_line_start = cursor_pos + next_newline + 1;
-        if next_line_start < text.len() {
-            let next_line_end = text[next_line_start..].find('\n')
-                .map(|i| next_line_start + i)
-                .unwrap_or(text.len());
-            next_line_start + offset.min(next_line_end - next_line_start)
-        } else {
-            cursor_pos
-        }
-    } else {
-        cursor_pos // Already at bottom
-    }
-}
-
-fn navigate_history_up(input: &mut String, cursor_position: &mut usize, history_index: &mut Option<usize>, rl: &Editor<(), rustyline::history::DefaultHistory>) {
-    let history = rl.history();
-    if history.len() == 0 {
-        return;
-    }
-    
-    *history_index = Some(match *history_index {
-        None => history.len().saturating_sub(1),
-        Some(0) => 0,
-        Some(i) => i.saturating_sub(1),
-    });
-    
-    if let Some(i) = *history_index {
-        let entries: Vec<String> = history.iter().map(|s| s.to_string()).collect();
-        if i < entries.len() {
-            *input = entries[i].clone();
-            *cursor_position = input.len();
-        }
-    }
-}
-
-fn navigate_history_down(input: &mut String, cursor_position: &mut usize, history_index: &mut Option<usize>, rl: &Editor<(), rustyline::history::DefaultHistory>) {
-    let history = rl.history();
-    if let Some(i) = *history_index {
-        if i + 1 < history.len() {
-            *history_index = Some(i + 1);
-            let entries: Vec<String> = history.iter().map(|s| s.to_string()).collect();
-            if i + 1 < entries.len() {
-                *input = entries[i + 1].clone();
-                *cursor_position = input.len();
-            }
-        } else {
-            *history_index = None;
-            input.clear();
-            *cursor_position = 0;
-        }
-    }
 }
