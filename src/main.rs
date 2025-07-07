@@ -14,18 +14,18 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
     layout::{Layout, Constraint, Direction},
 };
-use ratatui::text::{Span, Line, Text};
+use ratatui::text::Text;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     execute,
 };
-use std::io::Write;
+
 use std::thread;
 use std::time::Duration;
 use tui::format_message_for_tui;
 use rustyline::Editor;
-use futures::future::FutureExt;
+use rustyline::history::History;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -52,6 +52,10 @@ struct Args {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
+    // Feature flag constants
+    const SCROLL_ON_USER_INPUT: bool = true;  // Feature flag for scrolling on user input
+    const SCROLL_ON_API_RESPONSE: bool = true; // Feature flag for scrolling on API response
+
     // Setup TUI
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -72,8 +76,28 @@ async fn main() -> Result<()> {
     let mut waiting = false;
     let mut progress_i = 0;
     let progress_frames = ["    ", ".   ", "..  ", "... ", "...."];
+    let mut history_index: Option<usize> = None;
+    let mut chat_scroll_offset: u16 = 0;
+    let mut auto_scroll = true;
+    let mut last_message_count: usize = 0;
 
     loop {
+        // Check for new messages BEFORE drawing
+        let current_message_count = client.messages.len();
+        if current_message_count != last_message_count {
+            let is_user_message = client.messages.last()
+                .map(|m| m.role == "user")
+                .unwrap_or(false);
+            
+            last_message_count = current_message_count;
+            
+            // Apply feature flags to control when to enable auto-scroll
+            if (is_user_message && SCROLL_ON_USER_INPUT) || 
+               (!is_user_message && SCROLL_ON_API_RESPONSE) {
+                auto_scroll = true;
+            }
+        }
+
         // Draw UI
         terminal.draw(|f| {
             let size = f.size();
@@ -86,14 +110,28 @@ async fn main() -> Result<()> {
                 ])
                 .split(size);
 
-            // Chat/messages area
             let mut chat_spans = Vec::new();
             for msg in &client.messages {
                 chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
             }
+
+            // Calculate proper scroll offset if auto_scroll is enabled
+            if auto_scroll && !chat_spans.is_empty() {
+                let chat_height = layout[0].height.saturating_sub(2); // subtract borders
+                let total_lines = chat_spans.len() as u16;
+                
+                if total_lines > chat_height {
+                    chat_scroll_offset = total_lines - chat_height;
+                } else {
+                    chat_scroll_offset = 0;
+                }
+            }
+
+            // Chat/messages area
             let chat = Paragraph::new(Text::from(chat_spans))
                 .block(Block::default().borders(Borders::ALL).title("Conversation"))
-                .wrap(Wrap { trim: false });
+                .wrap(Wrap { trim: false })
+                .scroll((chat_scroll_offset, 0));
             f.render_widget(chat, layout[0]);
 
             // Input area (middle)
@@ -140,12 +178,10 @@ async fn main() -> Result<()> {
         })?;
 
         // Event handling
-        if event::poll(Duration::from_millis(1000))? {
+        if event::poll(Duration::from_millis(50))? {
             if let Event::Key(KeyEvent {
                 code,
                 modifiers,
-                kind,
-                state,
                 ..
             }) = event::read()?
             {
@@ -161,12 +197,24 @@ async fn main() -> Result<()> {
 
                             let user_input = input.clone();
                             input.clear();
+                            history_index = None; // Reset history index
+
+                            // Add to rustyline history
+                            rl.add_history_entry(&user_input).ok();
 
                             // Immediately add the user message for display
                             client.messages.push(Message {
                                 role: "user".to_string(),
                                 content: user_input.clone(),
                             });
+
+                            // Update the message count tracker to prevent double-detection
+                            last_message_count = client.messages.len();
+
+                            // Force auto-scroll if the feature flag is enabled
+                            if SCROLL_ON_USER_INPUT {
+                                auto_scroll = true;
+                            }
 
                             // Clone what you need for the API call
                             let messages = client.messages.clone();
@@ -211,8 +259,8 @@ async fn main() -> Result<()> {
                                 let api_response: ApiResponse = serde_json::from_str(&response_text)
                                     .context("Failed to parse API response")?;
 
-                                let mut total_input_tokens = api_response.usage.input_tokens;
-                                let mut total_output_tokens = api_response.usage.output_tokens;
+                                let total_input_tokens = api_response.usage.input_tokens;
+                                let total_output_tokens = api_response.usage.output_tokens;
                                 let mut messages = messages.clone();
 
                                 let assistant_response = api_response
@@ -268,9 +316,23 @@ async fn main() -> Result<()> {
                                     for msg in &client.messages {
                                         chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
                                     }
+
+                                    // Calculate proper scroll offset if auto_scroll is enabled
+                                    if auto_scroll && !chat_spans.is_empty() {
+                                        let chat_height = layout[0].height.saturating_sub(2); // subtract borders
+                                        let total_lines = chat_spans.len() as u16;
+                                        
+                                        if total_lines > chat_height {
+                                            chat_scroll_offset = total_lines - chat_height;
+                                        } else {
+                                            chat_scroll_offset = 0;
+                                        }
+                                    }
+                                    
                                     let chat = Paragraph::new(Text::from(chat_spans))
                                         .block(Block::default().borders(Borders::ALL).title("Conversation"))
-                                        .wrap(Wrap { trim: false });
+                                        .wrap(Wrap { trim: false })
+                                        .scroll((chat_scroll_offset, 0));
                                     f.render_widget(chat, layout[0]);
 
                                     let input_bar = Paragraph::new("")
@@ -312,8 +374,78 @@ async fn main() -> Result<()> {
                     KeyCode::Backspace => {
                         input.pop();
                     }
-                    KeyCode::Char(ch) => {
-                        input.push(ch);
+                    KeyCode::Up => {
+                        let history = rl.history();
+                        if history.len() == 0 {
+                            // No history
+                        } else {
+                            history_index = Some(match history_index {
+                                None => history.len().saturating_sub(1),
+                                Some(0) => 0,
+                                Some(i) => i.saturating_sub(1),
+                            });
+                            if let Some(i) = history_index {
+                                let entries: Vec<String> = history.iter().map(|s| s.to_string()).collect();
+                                if i < entries.len() {
+                                    input = entries[i].clone();
+                                }
+                            }
+                        }
+                    }
+                    KeyCode::Down => {
+                        let history = rl.history();
+                        if let Some(i) = history_index {
+                            if i + 1 < history.len() {
+                                history_index = Some(i + 1);
+                                let entries: Vec<String> = history.iter().map(|s| s.to_string()).collect();
+                                if i + 1 < entries.len() {
+                                    input = entries[i + 1].clone();
+                                }
+                            } else {
+                                history_index = None;
+                                input.clear();
+                            }
+                        }
+                    }
+                    KeyCode::PageUp => {
+                        auto_scroll = false; // Disable auto-scroll when manually scrolling
+                        chat_scroll_offset = chat_scroll_offset.saturating_sub(5);
+                    }
+                    KeyCode::PageDown => {
+                        // Calculate max scroll without drawing
+                        let size = terminal.size()?;
+                        let layout = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([
+                                Constraint::Min(3),
+                                Constraint::Length(3),
+                                Constraint::Length(3),
+                            ])
+                            .split(size);
+                        
+                        let chat_height = layout[0].height.saturating_sub(2);
+                        let mut chat_spans = Vec::new();
+                        for msg in &client.messages {
+                            chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
+                        }
+                        let total_lines = chat_spans.len() as u16;
+                        
+                        let max_scroll = if total_lines > chat_height {
+                            total_lines - chat_height
+                        } else {
+                            0
+                        };
+                        
+                        let new_offset = chat_scroll_offset.saturating_add(5);
+                        chat_scroll_offset = new_offset.min(max_scroll);
+                        
+                        // If we've reached the bottom, re-enable auto-scroll
+                        if chat_scroll_offset >= max_scroll {
+                            auto_scroll = true;
+                        }
+                    }
+                    KeyCode::Char(c) => {
+                        input.push(c);
                     }
                     KeyCode::F(2) => {
                         // Clear conversation
@@ -326,7 +458,8 @@ async fn main() -> Result<()> {
             }
         }
 
-        thread::sleep(Duration::from_millis(100));
+        // Small sleep to prevent busy waiting when no events
+        thread::sleep(Duration::from_millis(10));
     }
 
     // Cleanup

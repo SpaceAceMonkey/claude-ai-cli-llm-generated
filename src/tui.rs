@@ -1,7 +1,7 @@
-use ratatui::text::{Span, Line, Text};
+use ratatui::text::{Span, Line};
 use ratatui::style::{Style as TuiStyle, Color as TuiColor};
 use ratatui::style::Stylize;
-use crate::api::Message;
+
 use crate::syntax::highlight_code_block;
 
 pub fn format_message_for_tui(role: &str, content: &str) -> Vec<Line<'static>> {
@@ -19,10 +19,8 @@ pub fn format_message_for_tui(role: &str, content: &str) -> Vec<Line<'static>> {
     for line in content.lines() {
         if line.trim_start().starts_with("```") {
             if in_code {
-                let highlighted = highlight_code_block(&code_buf, code_lang);
-                for code_line in highlighted.lines() {
-                    lines.push(Line::from(Span::raw(code_line.to_string())));
-                }
+                let highlighted_lines = highlight_code_block(&code_buf, code_lang);
+                lines.extend(highlighted_lines);
                 code_buf.clear();
                 in_code = false;
             } else {
@@ -46,10 +44,9 @@ pub fn format_message_for_tui(role: &str, content: &str) -> Vec<Line<'static>> {
         }
     }
     if in_code && !code_buf.is_empty() {
-        let highlighted = highlight_code_block(&code_buf, code_lang);
-        for code_line in highlighted.lines() {
-            lines.push(Line::from(Span::raw(code_line.to_string())));
-        }
+        let highlighted_lines = highlight_code_block(&code_buf, code_lang);
+        lines.extend(highlighted_lines);
     }
+    
     lines
 }
