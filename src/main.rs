@@ -98,6 +98,7 @@ struct ErrorDetail {
     message: String,
 }
 
+#[derive(Clone)]
 struct ConversationClient {
     client: Client,
     api_key: String,
@@ -331,7 +332,10 @@ async fn main() -> Result<()> {
 
             // Status/progress bar (bottom left)
             let status_text = if waiting {
-                format!("Waiting for Claude {}", progress_frames[progress_i % progress_frames.len()])
+                format!(
+                    "Waiting for Claude {}",
+                    progress_frames[progress_i % progress_frames.len()]
+                )
             } else {
                 status.clone()
             };
@@ -339,74 +343,65 @@ async fn main() -> Result<()> {
                 .block(Block::default().borders(Borders::ALL).title("Status"));
             f.render_widget(status_bar, bottom_chunks[0]);
 
-            // Token usage panel (bottom right)
-            // This is a crude estimate: count whitespace-separated words as tokens
-            let total_tokens: u32 = client
-                .messages
-                .iter()
-                .map(|msg| msg.content.split_whitespace().count() as u32)
-                .sum();
-            let token_panel = Paragraph::new(format!(
-                "Tokens used: {}\nInput: {}\nOutput: {}",
-                client.total_tokens(),
+            // Token usage (bottom right)
+            let token_usage_text = format!(
+                "Input tokens: {}, Output tokens: {}, Total tokens: {}",
                 client.total_input_tokens,
-                client.total_output_tokens
-            ))
-            .block(Block::default().borders(Borders::ALL).title("Tokens"));
-            f.render_widget(token_panel, bottom_chunks[1]);
+                client.total_output_tokens,
+                client.total_tokens()
+            );
+            let token_usage = Paragraph::new(token_usage_text)
+                .block(Block::default().borders(Borders::ALL).title("Token Usage"));
+            f.render_widget(token_usage, bottom_chunks[1]);
         })?;
 
-        // Handle input/events
-        if waiting {
-            thread::sleep(Duration::from_millis(250));
-            progress_i += 1;
-            continue;
-        }
+        // Event handling
+        if event::poll(Duration::from_millis(1000))? {
+            if let Event::Key(KeyEvent {
+                code,
+                modifiers,
+                kind,
+                state,
+                ..
+            }) = event::read()?
+            {
+                match code {
+                    KeyCode::Char('c') if modifiers == KeyModifiers::CONTROL => {
+                        break;
+                    }
+                    KeyCode::Enter => {
+                        if !input.is_empty() {
+                            waiting = true;
+                            status = "Sending to Claude...".to_string();
+                            progress_i = 0;
 
-        if event::poll(Duration::from_millis(100))? {
-            match event::read()? {
-                Event::Key(KeyEvent { code, modifiers, kind, .. }) => {
-                    match code {
-                        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
-                            break;
-                        }
-                        KeyCode::Char('d') if modifiers.contains(KeyModifiers::CONTROL) => {
-                            break;
-                        }
-                        KeyCode::Char('\n') | KeyCode::Enter => {
-                            let trimmed = input.trim();
-                            if trimmed.is_empty() {
-                                input.clear();
-                                continue;
-                            }
-                            rl.add_history_entry(trimmed);
                             let user_input = input.clone();
                             input.clear();
 
-                            // Add user message to conversation immediately
+                            // Immediately add the user message for display
                             client.messages.push(Message {
                                 role: "user".to_string(),
                                 content: user_input.clone(),
                             });
 
-                            // Before the progress loop:
+                            // Clone what you need for the API call
+                            let messages = client.messages.clone();
                             let api_key = client.api_key.clone();
                             let model = client.model.clone();
                             let max_tokens = client.max_tokens;
                             let temperature = client.temperature;
-                            let messages = client.messages.clone();
-                            let user_input_for_api = user_input.clone();
 
                             let mut handle = Box::pin(tokio::spawn(async move {
-                                let client = reqwest::Client::new();
-                                let mut all_messages = messages;
+                                // Build the request using the messages (already includes the user message)
                                 let request = ApiRequest {
-                                    model,
+                                    model: model.clone(),
                                     max_tokens,
                                     temperature,
-                                    messages: all_messages,
+                                    messages: messages.clone(),
                                 };
-                                let response = client
+
+                                let client_http = Client::new();
+                                let response = client_http
                                     .post("https://api.anthropic.com/v1/messages")
                                     .header("Content-Type", "application/json")
                                     .header("x-api-key", &api_key)
@@ -432,6 +427,10 @@ async fn main() -> Result<()> {
                                 let api_response: ApiResponse = serde_json::from_str(&response_text)
                                     .context("Failed to parse API response")?;
 
+                                let mut total_input_tokens = api_response.usage.input_tokens;
+                                let mut total_output_tokens = api_response.usage.output_tokens;
+                                let mut messages = messages.clone();
+
                                 let assistant_response = api_response
                                     .content
                                     .iter()
@@ -440,15 +439,36 @@ async fn main() -> Result<()> {
                                     .collect::<Vec<_>>()
                                     .join("");
 
-                                Ok::<_, anyhow::Error>(assistant_response)
+                                messages.push(Message {
+                                    role: "assistant".to_string(),
+                                    content: assistant_response.clone(),
+                                });
+
+                                Ok((assistant_response, total_input_tokens, total_output_tokens, messages))
                             }));
 
-                            use futures::Future;
-                            waiting = true;
-                            status.clear();
+                            loop {
+                                use futures::FutureExt;
+                                if let Some(result) = handle.as_mut().now_or_never() {
+                                    waiting = false;
+                                    match result {
+                                        Ok(Ok((response, input_tokens, output_tokens, messages))) => {
+                                            client.total_input_tokens = input_tokens;
+                                            client.total_output_tokens = output_tokens;
+                                            client.messages = messages;
+                                            status = format!("Received response ({} tokens)", response.len());
+                                        }
+                                        Ok(Err(e)) => {
+                                            status = format!("Error: {}", e);
+                                        }
+                                        Err(e) => {
+                                            status = format!("Task join error: {}", e);
+                                        }
+                                    }
+                                    break;
+                                }
 
-                            while waiting {
-                                // Draw progress bar
+                                // Draw UI with animated progress bar
                                 terminal.draw(|f| {
                                     let size = f.size();
                                     let layout = Layout::default()
@@ -473,61 +493,60 @@ async fn main() -> Result<()> {
                                         .block(Block::default().borders(Borders::ALL).title("Input"));
                                     f.render_widget(input_bar, layout[1]);
 
-                                    let status_text = format!("Waiting for Claude {}", progress_frames[progress_i % progress_frames.len()]);
+                                    let bottom_chunks = Layout::default()
+                                        .direction(Direction::Horizontal)
+                                        .constraints([
+                                            Constraint::Percentage(70),
+                                            Constraint::Percentage(30),
+                                        ])
+                                        .split(layout[2]);
+
+                                    let status_text = format!(
+                                        "Waiting for Claude {}",
+                                        progress_frames[progress_i % progress_frames.len()]
+                                    );
                                     let status_bar = Paragraph::new(status_text)
                                         .block(Block::default().borders(Borders::ALL).title("Status"));
-                                    f.render_widget(status_bar, layout[2]);
+                                    f.render_widget(status_bar, bottom_chunks[0]);
+
+                                    let token_usage_text = format!(
+                                        "Input tokens: {}, Output tokens: {}, Total tokens: {}",
+                                        client.total_input_tokens,
+                                        client.total_output_tokens,
+                                        client.total_tokens()
+                                    );
+                                    let token_usage = Paragraph::new(token_usage_text)
+                                        .block(Block::default().borders(Borders::ALL).title("Token Usage"));
+                                    f.render_widget(token_usage, bottom_chunks[1]);
                                 })?;
 
-                                // Check if the handle has finished
-                                if let std::task::Poll::Ready(result) = std::pin::Pin::as_mut(&mut handle).poll(&mut std::task::Context::from_waker(futures::task::noop_waker_ref())) {
-                                    waiting = false;
-                                    match result {
-                                        Ok(Ok(response)) => {
-                                            client.messages.push(Message {
-                                                role: "assistant".to_string(),
-                                                content: response.clone(),
-                                            });
-                                            status = format!("Received response ({} tokens)", response.len());
-                                        }
-                                        Ok(Err(e)) => {
-                                            status = format!("Error: {}", e);
-                                        }
-                                        Err(e) => {
-                                            status = format!("Task join error: {}", e);
-                                        }
-                                    }
-                                }
                                 progress_i += 1;
-                                std::thread::sleep(std::time::Duration::from_millis(250));
+                                tokio::time::sleep(Duration::from_millis(250)).await;
                             }
                         }
-                        KeyCode::Backspace => {
-                            input.pop();
-                        }
-                        KeyCode::Delete => {
-                            input.clear();
-                        }
-                        KeyCode::Home => {
-                            input = rl.readline(&format!("{}: ", "user")).unwrap_or_default();
-                        }
-                        KeyCode::End => {
-                            input = rl.readline(&format!("{}: ", "assistant")).unwrap_or_default();
-                        }
-                        KeyCode::Char(c) => {
-                            input.push(c);
-                        }
-                        _ => {} // <-- Add this to handle FocusGained, FocusLost, Mouse, Paste, Resize, etc.
                     }
+                    KeyCode::Backspace => {
+                        input.pop();
+                    }
+                    KeyCode::Char(ch) => {
+                        input.push(ch);
+                    }
+                    KeyCode::F(2) => {
+                        // Clear conversation
+                        client.clear_conversation();
+                        input.clear();
+                        status.clear();
+                    }
+                    _ => {}
                 }
-                _ => {} // <-- Add this to handle FocusGained, FocusLost, Mouse, Paste, Resize, etc.
             }
         }
+
+        thread::sleep(Duration::from_millis(100));
     }
 
     // Cleanup
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
+    execute!(std::io::stdout(), LeaveAlternateScreen)?;
     Ok(())
 }
