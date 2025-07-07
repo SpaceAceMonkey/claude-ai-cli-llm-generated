@@ -81,6 +81,10 @@ async fn main() -> Result<()> {
     let mut auto_scroll = true;
     let mut last_message_count: usize = 0;
 
+    // New state variables
+    let mut cursor_position: usize = 0;  // Track cursor position in input
+    let mut input_scroll_offset: u16 = 0;  // Track scroll position for input
+
     loop {
         // Check for new messages BEFORE drawing
         let current_message_count = client.messages.len();
@@ -105,8 +109,8 @@ async fn main() -> Result<()> {
                 .direction(Direction::Vertical)
                 .constraints([
                     Constraint::Min(3),      // Conversation
-                    Constraint::Length(3),  // Input
-                    Constraint::Length(3),  // Status
+                    Constraint::Length(6),   // Input (4 lines + 2 for borders)
+                    Constraint::Length(3),   // Status
                 ])
                 .split(size);
 
@@ -146,13 +150,34 @@ async fn main() -> Result<()> {
                 .scroll((chat_scroll_offset, 0));
             f.render_widget(chat, layout[0]);
 
-            // Input area (middle)
-            let input_bar = Paragraph::new(input.as_str())
-                .block(Block::default().borders(Borders::ALL).title("Input"));
+            // Input area (middle) - with wrapping and scroll
+            let input_lines = wrap_text(&input, layout[1].width.saturating_sub(2) as usize);
+            let cursor_line = calculate_cursor_line(&input, cursor_position, layout[1].width.saturating_sub(2) as usize);
+            let input_height = layout[1].height.saturating_sub(2); // subtract borders
+
+            // Auto-scroll input to keep cursor visible
+            if cursor_line >= input_scroll_offset as usize + input_height as usize {
+                input_scroll_offset = (cursor_line + 1).saturating_sub(input_height as usize) as u16;
+            } else if cursor_line < input_scroll_offset as usize {
+                input_scroll_offset = cursor_line as u16;
+            }
+
+            let input_bar = Paragraph::new(Text::from(input_lines))
+                .block(Block::default().borders(Borders::ALL).title("Input"))
+                .wrap(Wrap { trim: false })
+                .scroll((input_scroll_offset, 0));
             f.render_widget(input_bar, layout[1]);
+
+            // Calculate cursor position for rendering
+            let (cursor_x, cursor_y) = calculate_cursor_position(
+                &input,
+                cursor_position,
+                layout[1].width.saturating_sub(2) as usize,
+                input_scroll_offset as usize,
+            );
             f.set_cursor(
-                layout[1].x + input.len() as u16 + 1,
-                layout[1].y + 1,
+                layout[1].x + cursor_x as u16 + 1,
+                layout[1].y + cursor_y as u16 + 1,
             );
 
             // Bottom section: split into status and token usage
@@ -209,6 +234,7 @@ async fn main() -> Result<()> {
 
                             let user_input = input.clone();
                             input.clear();
+                            cursor_position = 0;  // Reset cursor position
                             history_index = None; // Reset history index
 
                             // Add to rustyline history
@@ -318,9 +344,9 @@ async fn main() -> Result<()> {
                                     let layout = Layout::default()
                                         .direction(Direction::Vertical)
                                         .constraints([
-                                            Constraint::Min(3),
-                                            Constraint::Length(3),
-                                            Constraint::Length(3),
+                                            Constraint::Min(3),      // Conversation
+                                            Constraint::Length(6),   // Input (4 lines + 2 for borders)
+                                            Constraint::Length(3),   // Status
                                         ])
                                         .split(size);
 
@@ -359,9 +385,35 @@ async fn main() -> Result<()> {
                                         .scroll((chat_scroll_offset, 0));
                                     f.render_widget(chat, layout[0]);
 
-                                    let input_bar = Paragraph::new("")
-                                        .block(Block::default().borders(Borders::ALL).title("Input"));
+                                    // Input area (middle) - with wrapping and scroll
+                                    let input_lines = wrap_text(&input, layout[1].width.saturating_sub(2) as usize);
+                                    let cursor_line = calculate_cursor_line(&input, cursor_position, layout[1].width.saturating_sub(2) as usize);
+                                    let input_height = layout[1].height.saturating_sub(2); // subtract borders
+
+                                    // Auto-scroll input to keep cursor visible
+                                    if cursor_line >= input_scroll_offset as usize + input_height as usize {
+                                        input_scroll_offset = (cursor_line + 1).saturating_sub(input_height as usize) as u16;
+                                    } else if cursor_line < input_scroll_offset as usize {
+                                        input_scroll_offset = cursor_line as u16;
+                                    }
+
+                                    let input_bar = Paragraph::new(Text::from(input_lines))
+                                        .block(Block::default().borders(Borders::ALL).title("Input"))
+                                        .wrap(Wrap { trim: false })
+                                        .scroll((input_scroll_offset, 0));
                                     f.render_widget(input_bar, layout[1]);
+
+                                    // Calculate cursor position for rendering
+                                    let (cursor_x, cursor_y) = calculate_cursor_position(
+                                        &input,
+                                        cursor_position,
+                                        layout[1].width.saturating_sub(2) as usize,
+                                        input_scroll_offset as usize,
+                                    );
+                                    f.set_cursor(
+                                        layout[1].x + cursor_x as u16 + 1,
+                                        layout[1].y + cursor_y as u16 + 1,
+                                    );
 
                                     let bottom_chunks = Layout::default()
                                         .direction(Direction::Horizontal)
@@ -396,39 +448,45 @@ async fn main() -> Result<()> {
                         }
                     }
                     KeyCode::Backspace => {
-                        input.pop();
+                        if cursor_position > 0 {
+                            input.remove(cursor_position - 1);
+                            cursor_position -= 1;
+                        }
                     }
                     KeyCode::Up => {
-                        let history = rl.history();
-                        if history.len() == 0 {
-                            // No history
-                        } else {
-                            history_index = Some(match history_index {
-                                None => history.len().saturating_sub(1),
-                                Some(0) => 0,
-                                Some(i) => i.saturating_sub(1),
-                            });
-                            if let Some(i) = history_index {
-                                let entries: Vec<String> = history.iter().map(|s| s.to_string()).collect();
-                                if i < entries.len() {
-                                    input = entries[i].clone();
-                                }
+                        let input_width = terminal.size()?.width.saturating_sub(4) as usize; // rough estimate
+                        let is_multiline = input.contains('\n') || input.len() > input_width;
+                        
+                        if is_multiline {
+                            // Move cursor up within the input
+                            let new_pos = move_cursor_up(&input, cursor_position, input_width);
+                            if new_pos != cursor_position {
+                                cursor_position = new_pos;
+                            } else {
+                                // At the top of input, go to history
+                                navigate_history_up(&mut input, &mut cursor_position, &mut history_index, &rl);
                             }
+                        } else {
+                            // Single line - directly go to history
+                            navigate_history_up(&mut input, &mut cursor_position, &mut history_index, &rl);
                         }
                     }
                     KeyCode::Down => {
-                        let history = rl.history();
-                        if let Some(i) = history_index {
-                            if i + 1 < history.len() {
-                                history_index = Some(i + 1);
-                                let entries: Vec<String> = history.iter().map(|s| s.to_string()).collect();
-                                if i + 1 < entries.len() {
-                                    input = entries[i + 1].clone();
-                                }
+                        let input_width = terminal.size()?.width.saturating_sub(4) as usize;
+                        let is_multiline = input.contains('\n') || input.len() > input_width;
+                        
+                        if is_multiline {
+                            // Move cursor down within the input
+                            let new_pos = move_cursor_down(&input, cursor_position, input_width);
+                            if new_pos != cursor_position {
+                                cursor_position = new_pos;
                             } else {
-                                history_index = None;
-                                input.clear();
+                                // At the bottom of input, go to history
+                                navigate_history_down(&mut input, &mut cursor_position, &mut history_index, &rl);
                             }
+                        } else {
+                            // Single line - directly go to history
+                            navigate_history_down(&mut input, &mut cursor_position, &mut history_index, &rl);
                         }
                     }
                     KeyCode::PageUp => {
@@ -441,9 +499,9 @@ async fn main() -> Result<()> {
                         let layout = Layout::default()
                             .direction(Direction::Vertical)
                             .constraints([
-                                Constraint::Min(3),
-                                Constraint::Length(3),
-                                Constraint::Length(3),
+                                Constraint::Min(3),      // Conversation
+                                Constraint::Length(6),   // Input (4 lines + 2 for borders)
+                                Constraint::Length(3),   // Status
                             ])
                             .split(size);
                         
@@ -479,8 +537,23 @@ async fn main() -> Result<()> {
                             auto_scroll = true;
                         }
                     }
+                    KeyCode::Left => {
+                        cursor_position = cursor_position.saturating_sub(1);
+                    }
+                    KeyCode::Right => {
+                        if cursor_position < input.len() {
+                            cursor_position += 1;
+                        }
+                    }
+                    KeyCode::Home => {
+                        cursor_position = 0;
+                    }
+                    KeyCode::End => {
+                        cursor_position = input.len();
+                    }
                     KeyCode::Char(c) => {
-                        input.push(c);
+                        input.insert(cursor_position, c);
+                        cursor_position += 1;
                     }
                     KeyCode::F(2) => {
                         // Clear conversation
@@ -501,4 +574,148 @@ async fn main() -> Result<()> {
     disable_raw_mode()?;
     execute!(std::io::stdout(), LeaveAlternateScreen)?;
     Ok(())
+}
+
+// New helper functions
+
+fn wrap_text(text: &str, width: usize) -> Vec<ratatui::text::Line<'static>> {
+    let mut lines = Vec::new();
+    for line in text.lines() {
+        if line.len() <= width {
+            lines.push(ratatui::text::Line::from(line.to_string()));
+        } else {
+            // Wrap long lines
+            let mut start = 0;
+            while start < line.len() {
+                let end = (start + width).min(line.len());
+                lines.push(ratatui::text::Line::from(line[start..end].to_string()));
+                start = end;
+            }
+        }
+    }
+    if lines.is_empty() {
+        lines.push(ratatui::text::Line::from(""));
+    }
+    lines
+}
+
+fn calculate_cursor_line(text: &str, cursor_pos: usize, width: usize) -> usize {
+    let mut line = 0;
+    let mut col = 0;
+    let mut pos = 0;
+    
+    for ch in text.chars() {
+        if pos == cursor_pos {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            col = 0;
+        } else {
+            col += 1;
+            if col >= width {
+                line += 1;
+                col = 0;
+            }
+        }
+        pos += 1;
+    }
+    line
+}
+
+fn calculate_cursor_position(text: &str, cursor_pos: usize, width: usize, scroll_offset: usize) -> (usize, usize) {
+    let mut line: usize = 0;  // Explicit type annotation
+    let mut col: usize = 0;   // Explicit type annotation
+    let mut pos: usize = 0;   // Explicit type annotation
+    
+    for ch in text.chars() {
+        if pos == cursor_pos {
+            break;
+        }
+        if ch == '\n' {
+            line += 1;
+            col = 0;
+        } else {
+            col += 1;
+            if col >= width {
+                line += 1;
+                col = 0;
+            }
+        }
+        pos += 1;
+    }
+    
+    (col, line.saturating_sub(scroll_offset))
+}
+
+fn move_cursor_up(text: &str, cursor_pos: usize, width: usize) -> usize {
+    // Implementation for moving cursor up one visual line
+    // This is simplified - a full implementation would handle wrapped lines properly
+    let line_start = text[..cursor_pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    if line_start == 0 {
+        return cursor_pos; // Already at top
+    }
+    let prev_line_start = text[..line_start.saturating_sub(1)].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let offset: usize = cursor_pos - line_start;  // Explicit type annotation
+    let prev_line_len = line_start.saturating_sub(prev_line_start + 1);
+    prev_line_start + offset.min(prev_line_len)
+}
+
+fn move_cursor_down(text: &str, cursor_pos: usize, width: usize) -> usize {
+    // Implementation for moving cursor down one visual line
+    // This is simplified - a full implementation would handle wrapped lines properly
+    if let Some(next_newline) = text[cursor_pos..].find('\n') {
+        let line_start = text[..cursor_pos].rfind('\n').map(|i| i + 1).unwrap_or(0);
+        let offset: usize = cursor_pos - line_start;  // Explicit type annotation
+        let next_line_start = cursor_pos + next_newline + 1;
+        if next_line_start < text.len() {
+            let next_line_end = text[next_line_start..].find('\n')
+                .map(|i| next_line_start + i)
+                .unwrap_or(text.len());
+            next_line_start + offset.min(next_line_end - next_line_start)
+        } else {
+            cursor_pos
+        }
+    } else {
+        cursor_pos // Already at bottom
+    }
+}
+
+fn navigate_history_up(input: &mut String, cursor_position: &mut usize, history_index: &mut Option<usize>, rl: &Editor<(), rustyline::history::DefaultHistory>) {
+    let history = rl.history();
+    if history.len() == 0 {
+        return;
+    }
+    
+    *history_index = Some(match *history_index {
+        None => history.len().saturating_sub(1),
+        Some(0) => 0,
+        Some(i) => i.saturating_sub(1),
+    });
+    
+    if let Some(i) = *history_index {
+        let entries: Vec<String> = history.iter().map(|s| s.to_string()).collect();
+        if i < entries.len() {
+            *input = entries[i].clone();
+            *cursor_position = input.len();
+        }
+    }
+}
+
+fn navigate_history_down(input: &mut String, cursor_position: &mut usize, history_index: &mut Option<usize>, rl: &Editor<(), rustyline::history::DefaultHistory>) {
+    let history = rl.history();
+    if let Some(i) = *history_index {
+        if i + 1 < history.len() {
+            *history_index = Some(i + 1);
+            let entries: Vec<String> = history.iter().map(|s| s.to_string()).collect();
+            if i + 1 < entries.len() {
+                *input = entries[i + 1].clone();
+                *cursor_position = input.len();
+            }
+        } else {
+            *history_index = None;
+            input.clear();
+            *cursor_position = 0;
+        }
+    }
 }
