@@ -3,14 +3,34 @@ use clap::Parser;
 use reqwest::Client;
 use rustyline::Editor;
 use serde::{Deserialize, Serialize};
-use std::io::{self, Write};
+use std::io::Write;
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::thread;
+use std::time::Duration;
 use tokio;
+
+use ratatui::{
+    backend::CrosstermBackend,
+    Terminal,
+    widgets::{Block, Borders, Paragraph, Wrap},
+    layout::{Layout, Constraint, Direction},
+    style::{Style as TuiStyle, Color as TuiColor},
+};
+use ratatui::text::{Span, Line, Text};
+use ratatui::style::Stylize;
+
+use crossterm::{
+    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    execute,
+};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Your Anthropic API key
-    #[arg(short, long, env = "ANTHROPIC_API_KEY")]
+    #[arg(short, long)]
+    #[arg(env = "ANTHROPIC_API_KEY")]
     api_key: String,
 
     /// Model to use (default: claude-3-5-sonnet-20241022)
@@ -48,6 +68,7 @@ struct ContentBlock {
 }
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 struct ApiResponse {
     id: String,
     #[serde(rename = "type")]
@@ -84,6 +105,8 @@ struct ConversationClient {
     max_tokens: u32,
     temperature: f32,
     messages: Vec<Message>,
+    total_input_tokens: u32,
+    total_output_tokens: u32,
 }
 
 impl ConversationClient {
@@ -95,11 +118,12 @@ impl ConversationClient {
             max_tokens,
             temperature,
             messages: Vec::new(),
+            total_input_tokens: 0,
+            total_output_tokens: 0,
         }
     }
 
     async fn send_message(&mut self, user_input: &str) -> Result<String> {
-        // Add user message to conversation history
         self.messages.push(Message {
             role: "user".to_string(),
             content: user_input.to_string(),
@@ -139,7 +163,10 @@ impl ConversationClient {
         let api_response: ApiResponse = serde_json::from_str(&response_text)
             .context("Failed to parse API response")?;
 
-        // Extract the assistant's response text
+        // Track tokens
+        self.total_input_tokens += api_response.usage.input_tokens;
+        self.total_output_tokens += api_response.usage.output_tokens;
+
         let assistant_response = api_response
             .content
             .iter()
@@ -148,243 +175,32 @@ impl ConversationClient {
             .collect::<Vec<_>>()
             .join("");
 
-        // Add assistant's response to conversation history
         self.messages.push(Message {
             role: "assistant".to_string(),
             content: assistant_response.clone(),
         });
 
-        // Print token usage
-        println!(
-            "\n[Tokens - Input: {}, Output: {}, Total: {}]",
-            api_response.usage.input_tokens,
-            api_response.usage.output_tokens,
-            api_response.usage.input_tokens + api_response.usage.output_tokens
-        );
-
         Ok(assistant_response)
     }
 
-    fn show_conversation_stats(&self) {
-        println!(
-            "\n[Conversation: {} messages, Model: {}]",
-            self.messages.len(),
-            self.model
-        );
+    fn total_tokens(&self) -> u32 {
+        self.total_input_tokens + self.total_output_tokens
     }
 
     fn clear_conversation(&mut self) {
         self.messages.clear();
-        println!("Conversation history cleared.");
+        self.total_input_tokens = 0;
+        self.total_output_tokens = 0;
     }
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    let args = Args::parse();
-
-    let features = AppFeatures {
-        less_available: is_tool_available("less"),
-    };
-
-    println!("🤖 Claude Interactive CLI Client");
-    println!("Type 'quit' or 'exit' to quit");
-    println!("Type 'clear' to clear conversation history");
-    println!("Type 'stats' to show conversation statistics");
-    println!("Type '/history' or '/hi' to show conversation history");
-    println!("Type '/historyl' or '/hl' to show conversation history as piped through less");
-    println!("Model: {}", args.model);
-    println!("Max tokens: {}", args.max_tokens);
-    println!("Temperature: {}", args.temperature);
-    println!("{}", "=".repeat(50));
-
-    if !features.less_available {
-        println!("(Note: 'less' not found, '/historyl' and '/hl' will be unavailable)");
-    }
-
-    let mut client = ConversationClient::new(
-        args.api_key,
-        args.model,
-        args.max_tokens,
-        args.temperature,
-    );
-
-    // Initialize rustyline editor for input with history
-    let mut rl = Editor::<(), rustyline::history::DefaultHistory>::new().unwrap();
-
-    loop {
-        let readline = rl.readline("\n> ");
-        let input = match readline {
-            Ok(line) => {
-                let trimmed = line.trim();
-                if !trimmed.is_empty() {
-                    rl.add_history_entry(trimmed);
-                }
-                trimmed.to_string()
-            }
-            Err(_) => {
-                println!("\nGoodbye! 👋");
-                break;
-            }
-        };
-
-        if input.is_empty() {
-            continue;
-        }
-
-        match input.to_lowercase().trim() {
-            "quit" | "exit" => {
-                println!("Goodbye! 👋");
-                break;
-            }
-            "clear" => {
-                client.clear_conversation();
-                continue;
-            }
-            "stats" => {
-                client.show_conversation_stats();
-                continue;
-            }
-            "/history" | "/hi" => {
-                show_history_overlay(&client.messages);
-                continue;
-            }
-            "/historyl" | "/hl" => {
-                if features.less_available {
-                    show_history_with_less(&client.messages);
-                } else {
-                    println!("'less' is not available on this system.");
-                }
-                continue;
-            }
-            _ => {}
-        }
-
-        println!("\nSending request...");
-
-        match client.send_message(&input).await {
-            Ok(response) => {
-                println!("\n🤖 Claude:");
-                print_message_with_highlighting("assistant", &response);
-            }
-            Err(e) => {
-                eprintln!("\n❌ Error: {}", e);
-            }
-        }
-    }
-
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_message_serialization() {
-        let message = Message {
-            role: "user".to_string(),
-            content: "Hello, world!".to_string(),
-        };
-        
-        let json = serde_json::to_string(&message).unwrap();
-        assert!(json.contains("\"role\":\"user\""));
-        assert!(json.contains("\"content\":\"Hello, world!\""));
-    }
-
-    #[test]
-    fn test_api_request_serialization() {
-        let request = ApiRequest {
-            model: "claude-3-5-sonnet-20241022".to_string(),
-            max_tokens: 1024,
-            temperature: 0.7,
-            messages: vec![Message {
-                role: "user".to_string(),
-                content: "Test".to_string(),
-            }],
-        };
-
-        let json = serde_json::to_string(&request).unwrap();
-        assert!(json.contains("\"model\":\"claude-3-5-sonnet-20241022\""));
-        assert!(json.contains("\"max_tokens\":1024"));
-    }
-}
-
-use crossterm::event::{self, Event, KeyCode};
-use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
-
-fn show_history_overlay(messages: &[Message]) {
-    print!("\x1B[2J\x1B[1;1H");
-    println!("--- Conversation History ---\n");
-    for msg in messages {
-        print_message_with_highlighting(&msg.role, &msg.content);
-    }
-    println!("\nPress Enter, Space, or Escape to return...");
-
-    // Enable raw mode to suppress escape sequences and echo
-    enable_raw_mode().ok();
-
-    // Swallow all keypresses except Enter, Space, or Escape
-    loop {
-        if let Ok(true) = event::poll(std::time::Duration::from_millis(500)) {
-            if let Ok(Event::Key(key_event)) = event::read() {
-                match key_event.code {
-                    KeyCode::Enter | KeyCode::Esc | KeyCode::Char(' ') => break,
-                    _ => {} // Ignore all other keys
-                }
-            }
-        }
-    }
-
-    // Always disable raw mode before returning
-    disable_raw_mode().ok();
-
-    print!("\x1B[2J\x1B[1;1H");
-    println!("--- Conversation So Far ---\n");
-    for msg in messages {
-        print_message_with_highlighting(&msg.role, &msg.content);
-    }
-}
-
-fn show_history_with_less(messages: &[Message]) {
-    use std::io::Write;
-    use std::process::{Command, Stdio};
-
-    let mut history = String::new();
-    for msg in messages {
-        history.push_str(&format!("[{}]: {}\n", msg.role, msg.content));
-    }
-
-    let mut child = Command::new("less")
-        .stdin(Stdio::piped())
-        .spawn()
-        .expect("Failed to spawn less");
-    if let Some(stdin) = child.stdin.as_mut() {
-        let _ = stdin.write_all(history.as_bytes());
-    }
-    let _ = child.wait();
-}
-
-use std::process::Command;
-fn is_tool_available(tool: &str) -> bool {
-    Command::new("which")
-        .arg(tool)
-        .output()
-        .map(|output| output.status.success())
-        .unwrap_or(false)
-}
-
-struct AppFeatures {
-    less_available: bool,
 }
 
 use syntect::easy::HighlightLines;
 use syntect::highlighting::{ThemeSet, Style};
 use syntect::parsing::SyntaxSet;
 use syntect::util::{as_24_bit_terminal_escaped, LinesWithEndings};
+use futures::future::FutureExt;
 
 fn highlight_code_block(code: &str, language: &str) -> String {
-    // Load syntax and theme sets once (could be optimized with lazy_static or similar)
     let ps = SyntaxSet::load_defaults_newlines();
     let ts = ThemeSet::load_defaults();
     let syntax = ps.find_syntax_by_token(language).unwrap_or_else(|| ps.find_syntax_plain_text());
@@ -397,33 +213,30 @@ fn highlight_code_block(code: &str, language: &str) -> String {
     highlighted
 }
 
-fn print_message_with_highlighting(role: &str, content: &str) {
-    let mut in_code = false;
-    let mut code_lang = "rust"; // Default to rust, or parse from block
-    let mut code_buf = String::new();
-
-    // Choose color code for each role
-    let (role_color_start, role_color_end) = match role {
-        "assistant" => ("\x1b[1;36m", "\x1b[0m"), // Bold cyan
-        "user" => ("\x1b[1;35m", "\x1b[0m"),      // Bold green
-        _ => ("\x1b[1;33m", "\x1b[0m"),           // Bold yellow
+fn format_message_for_tui(role: &str, content: &str) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    let (role_color, _) = match role {
+        "assistant" => (TuiColor::Cyan, "\x1b[0m"),
+        "user" => (TuiColor::Magenta, "\x1b[0m"),
+        _ => (TuiColor::Yellow, "\x1b[0m"),
     };
+
+    let mut in_code = false;
+    let mut code_lang = "rust";
+    let mut code_buf = String::new();
 
     for line in content.lines() {
         if line.trim_start().starts_with("```") {
             if in_code {
-                // End of code block: print highlighted
-                println!("{}", highlight_code_block(&code_buf, code_lang));
+                let highlighted = highlight_code_block(&code_buf, code_lang);
+                for code_line in highlighted.lines() {
+                    lines.push(Line::from(Span::raw(code_line.to_string())));
+                }
                 code_buf.clear();
                 in_code = false;
             } else {
-                // Start of code block: parse language if present
                 let after = line.trim_start().trim_start_matches("```").trim();
-                if !after.is_empty() {
-                    code_lang = after;
-                } else {
-                    code_lang = "rust";
-                }
+                code_lang = if !after.is_empty() { after } else { "rust" };
                 in_code = true;
             }
             continue;
@@ -432,15 +245,289 @@ fn print_message_with_highlighting(role: &str, content: &str) {
             code_buf.push_str(line);
             code_buf.push('\n');
         } else {
-            // Print the colored role name
-            println!(
-                "[{}{}{}]: {}",
-                role_color_start, role, role_color_end, line
-            );
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("[{}]: ", role),
+                    TuiStyle::default().fg(role_color).bold(),
+                ),
+                Span::raw(line.to_string()),
+            ]));
         }
     }
-    // Print any trailing code block (if not closed)
     if in_code && !code_buf.is_empty() {
-        println!("{}", highlight_code_block(&code_buf, code_lang));
+        let highlighted = highlight_code_block(&code_buf, code_lang);
+        for code_line in highlighted.lines() {
+            lines.push(Line::from(Span::raw(code_line.to_string())));
+        }
     }
+    lines
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let args = Args::parse();
+
+    // Setup TUI
+    enable_raw_mode()?;
+    let mut stdout = std::io::stdout();
+    execute!(stdout, EnterAlternateScreen, crossterm::terminal::Clear(crossterm::terminal::ClearType::All))?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
+
+    let mut client = ConversationClient::new(
+        args.api_key,
+        args.model,
+        args.max_tokens,
+        args.temperature,
+    );
+
+    let mut rl = Editor::<(), rustyline::history::DefaultHistory>::new().unwrap();
+    let mut input = String::new();
+    let mut status = String::new();
+    let mut waiting = false;
+    let mut progress_i = 0;
+    let progress_frames = ["    ", ".   ", "..  ", "... ", "...."];
+
+    loop {
+        // Draw UI
+        terminal.draw(|f| {
+            let size = f.size();
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Min(3),      // Conversation
+                    Constraint::Length(3),  // Input
+                    Constraint::Length(3),  // Status
+                ])
+                .split(size);
+
+            // Chat/messages area
+            let mut chat_spans = Vec::new();
+            for msg in &client.messages {
+                chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
+            }
+            let chat = Paragraph::new(Text::from(chat_spans))
+                .block(Block::default().borders(Borders::ALL).title("Conversation"))
+                .wrap(Wrap { trim: false });
+            f.render_widget(chat, layout[0]);
+
+            // Input area (middle)
+            let input_bar = Paragraph::new(input.as_str())
+                .block(Block::default().borders(Borders::ALL).title("Input"));
+            f.render_widget(input_bar, layout[1]);
+            f.set_cursor(
+                layout[1].x + input.len() as u16 + 1,
+                layout[1].y + 1,
+            );
+
+            // Bottom section: split into status and token usage
+            let bottom_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Percentage(70), // Status
+                    Constraint::Percentage(30), // Token usage
+                ])
+                .split(layout[2]);
+
+            // Status/progress bar (bottom left)
+            let status_text = if waiting {
+                format!("Waiting for Claude {}", progress_frames[progress_i % progress_frames.len()])
+            } else {
+                status.clone()
+            };
+            let status_bar = Paragraph::new(status_text)
+                .block(Block::default().borders(Borders::ALL).title("Status"));
+            f.render_widget(status_bar, bottom_chunks[0]);
+
+            // Token usage panel (bottom right)
+            // This is a crude estimate: count whitespace-separated words as tokens
+            let total_tokens: u32 = client
+                .messages
+                .iter()
+                .map(|msg| msg.content.split_whitespace().count() as u32)
+                .sum();
+            let token_panel = Paragraph::new(format!(
+                "Tokens used: {}\nInput: {}\nOutput: {}",
+                client.total_tokens(),
+                client.total_input_tokens,
+                client.total_output_tokens
+            ))
+            .block(Block::default().borders(Borders::ALL).title("Tokens"));
+            f.render_widget(token_panel, bottom_chunks[1]);
+        })?;
+
+        // Handle input/events
+        if waiting {
+            thread::sleep(Duration::from_millis(250));
+            progress_i += 1;
+            continue;
+        }
+
+        if event::poll(Duration::from_millis(100))? {
+            match event::read()? {
+                Event::Key(KeyEvent { code, modifiers, kind, .. }) => {
+                    match code {
+                        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
+                            break;
+                        }
+                        KeyCode::Char('d') if modifiers.contains(KeyModifiers::CONTROL) => {
+                            break;
+                        }
+                        KeyCode::Char('\n') | KeyCode::Enter => {
+                            let trimmed = input.trim();
+                            if trimmed.is_empty() {
+                                input.clear();
+                                continue;
+                            }
+                            rl.add_history_entry(trimmed);
+                            let user_input = input.clone();
+                            input.clear();
+
+                            // Add user message to conversation immediately
+                            client.messages.push(Message {
+                                role: "user".to_string(),
+                                content: user_input.clone(),
+                            });
+
+                            // Before the progress loop:
+                            let api_key = client.api_key.clone();
+                            let model = client.model.clone();
+                            let max_tokens = client.max_tokens;
+                            let temperature = client.temperature;
+                            let messages = client.messages.clone();
+                            let user_input_for_api = user_input.clone();
+
+                            let mut handle = Box::pin(tokio::spawn(async move {
+                                let client = reqwest::Client::new();
+                                let mut all_messages = messages;
+                                let request = ApiRequest {
+                                    model,
+                                    max_tokens,
+                                    temperature,
+                                    messages: all_messages,
+                                };
+                                let response = client
+                                    .post("https://api.anthropic.com/v1/messages")
+                                    .header("Content-Type", "application/json")
+                                    .header("x-api-key", &api_key)
+                                    .header("anthropic-version", "2023-06-01")
+                                    .json(&request)
+                                    .send()
+                                    .await
+                                    .context("Failed to send request to API")?;
+
+                                let status = response.status();
+                                let response_text = response.text().await?;
+
+                                if !status.is_success() {
+                                    let error_response: ErrorResponse = serde_json::from_str(&response_text)
+                                        .context("Failed to parse error response")?;
+                                    anyhow::bail!(
+                                        "API Error ({}): {}",
+                                        error_response.error.error_type,
+                                        error_response.error.message
+                                    );
+                                }
+
+                                let api_response: ApiResponse = serde_json::from_str(&response_text)
+                                    .context("Failed to parse API response")?;
+
+                                let assistant_response = api_response
+                                    .content
+                                    .iter()
+                                    .filter(|block| block.content_type == "text")
+                                    .map(|block| block.text.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join("");
+
+                                Ok::<_, anyhow::Error>(assistant_response)
+                            }));
+
+                            use futures::Future;
+                            waiting = true;
+                            status.clear();
+
+                            while waiting {
+                                // Draw progress bar
+                                terminal.draw(|f| {
+                                    let size = f.size();
+                                    let layout = Layout::default()
+                                        .direction(Direction::Vertical)
+                                        .constraints([
+                                            Constraint::Min(3),
+                                            Constraint::Length(3),
+                                            Constraint::Length(3),
+                                        ])
+                                        .split(size);
+
+                                    let mut chat_spans = Vec::new();
+                                    for msg in &client.messages {
+                                        chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
+                                    }
+                                    let chat = Paragraph::new(Text::from(chat_spans))
+                                        .block(Block::default().borders(Borders::ALL).title("Conversation"))
+                                        .wrap(Wrap { trim: false });
+                                    f.render_widget(chat, layout[0]);
+
+                                    let input_bar = Paragraph::new("")
+                                        .block(Block::default().borders(Borders::ALL).title("Input"));
+                                    f.render_widget(input_bar, layout[1]);
+
+                                    let status_text = format!("Waiting for Claude {}", progress_frames[progress_i % progress_frames.len()]);
+                                    let status_bar = Paragraph::new(status_text)
+                                        .block(Block::default().borders(Borders::ALL).title("Status"));
+                                    f.render_widget(status_bar, layout[2]);
+                                })?;
+
+                                // Check if the handle has finished
+                                if let std::task::Poll::Ready(result) = std::pin::Pin::as_mut(&mut handle).poll(&mut std::task::Context::from_waker(futures::task::noop_waker_ref())) {
+                                    waiting = false;
+                                    match result {
+                                        Ok(Ok(response)) => {
+                                            client.messages.push(Message {
+                                                role: "assistant".to_string(),
+                                                content: response.clone(),
+                                            });
+                                            status = format!("Received response ({} tokens)", response.len());
+                                        }
+                                        Ok(Err(e)) => {
+                                            status = format!("Error: {}", e);
+                                        }
+                                        Err(e) => {
+                                            status = format!("Task join error: {}", e);
+                                        }
+                                    }
+                                }
+                                progress_i += 1;
+                                std::thread::sleep(std::time::Duration::from_millis(250));
+                            }
+                        }
+                        KeyCode::Backspace => {
+                            input.pop();
+                        }
+                        KeyCode::Delete => {
+                            input.clear();
+                        }
+                        KeyCode::Home => {
+                            input = rl.readline(&format!("{}: ", "user")).unwrap_or_default();
+                        }
+                        KeyCode::End => {
+                            input = rl.readline(&format!("{}: ", "assistant")).unwrap_or_default();
+                        }
+                        KeyCode::Char(c) => {
+                            input.push(c);
+                        }
+                        _ => {} // <-- Add this to handle FocusGained, FocusLost, Mouse, Paste, Resize, etc.
+                    }
+                }
+                _ => {} // <-- Add this to handle FocusGained, FocusLost, Mouse, Paste, Resize, etc.
+            }
+        }
+    }
+
+    // Cleanup
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+    Ok(())
 }
