@@ -94,7 +94,7 @@ fn get_saves_directory() -> PathBuf {
     std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
-fn load_directory_contents(files: &mut Vec<String>, current_dir: &PathBuf) {
+fn load_directory_contents(files: &mut Vec<String>, current_dir: &PathBuf, is_save_dialog: bool) {
     files.clear();
     
     // Add parent directory unless we're at root
@@ -102,8 +102,10 @@ fn load_directory_contents(files: &mut Vec<String>, current_dir: &PathBuf) {
         files.push("../".to_string());
     }
     
-    // Add option to create new directory
-    files.push("[ Create New Directory ]".to_string());
+    // Add option to create new directory only for save dialog
+    if is_save_dialog {
+        files.push("[ Create New Directory ]".to_string());
+    }
     
     if let Ok(entries) = fs::read_dir(current_dir) {
         let mut dirs = Vec::new();
@@ -130,8 +132,9 @@ fn load_directory_contents(files: &mut Vec<String>, current_dir: &PathBuf) {
         files.extend(regular_files);
     }
     
-    // If directory is empty (only parent dir and create option), show a message
-    if files.len() <= 2 {
+    // If directory is empty, show a message
+    let expected_count = if current_dir.parent().is_some() { 1 } else { 0 } + if is_save_dialog { 1 } else { 0 };
+    if files.len() <= expected_count {
         files.push("(Empty directory)".to_string());
     }
 }
@@ -349,27 +352,41 @@ async fn main() -> Result<()> {
             // Save dialog overlay
             if show_save_dialog {
                 let dialog_area = ratatui::layout::Rect {
-                    x: size.width / 4,
-                    y: size.height / 3,
-                    width: size.width / 2,
-                    height: 5,
+                    x: size.width / 6,
+                    y: size.height / 4,
+                    width: (size.width * 2) / 3,
+                    height: size.height / 2,
                 };
                 
                 f.render_widget(Clear, dialog_area);
                 
-                let save_dialog = Paragraph::new(format!("Enter filename: {}", save_filename))
+                let file_items: Vec<ListItem> = available_files.iter().map(|f| ListItem::new(f.as_str())).collect();
+                
+                let file_list = List::new(file_items)
                     .block(Block::default()
                         .borders(Borders::ALL)
-                        .title(format!("Save Conversation - {}", current_directory.display())))
+                        .title(format!("Save Conversation - {} (↑↓ to select, Enter to save/navigate, Esc to cancel)", current_directory.display())))
+                    .highlight_style(ratatui::style::Style::default().bg(ratatui::style::Color::Blue))
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                 
-                f.render_widget(save_dialog, dialog_area);
+                f.render_stateful_widget(file_list, dialog_area, &mut file_list_state);
                 
-                // Fix cursor positioning - place it right after "Enter filename: "
-                let prompt_len = "Enter filename: ".len();
+                // Show filename input at the bottom of the dialog
+                let input_area = ratatui::layout::Rect {
+                    x: dialog_area.x + 1,
+                    y: dialog_area.y + dialog_area.height - 3,
+                    width: dialog_area.width - 2,
+                    height: 1,
+                };
+                
+                let filename_input = Paragraph::new(format!("Filename: {}", save_filename))
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::DarkGray));
+                f.render_widget(filename_input, input_area);
+                
+                // Set cursor after filename prompt
                 f.set_cursor(
-                    dialog_area.x + 1 + prompt_len as u16 + save_filename.len() as u16,
-                    dialog_area.y + 1,
+                    input_area.x + "Filename: ".len() as u16 + save_filename.len() as u16,
+                    input_area.y,
                 );
             }
             
@@ -437,22 +454,62 @@ async fn main() -> Result<()> {
                     _ if show_save_dialog => {
                         match code {
                             KeyCode::Enter => {
-                                if !save_filename.is_empty() {
+                                if let Some(selected) = file_list_state.selected() {
+                                    if selected < available_files.len() {
+                                        let filename = &available_files[selected];
+                                        if filename == "../" {
+                                            if let Some(parent) = current_directory.parent() {
+                                                current_directory = parent.to_path_buf();
+                                                load_directory_contents(&mut available_files, &current_directory, true);
+                                                file_list_state.select(Some(0));
+                                            }
+                                        } else if filename == "[ Create New Directory ]" {
+                                            show_create_dir_dialog = true;
+                                            new_dir_name.clear();
+                                        } else if filename.ends_with('/') {
+                                            let dirname = &filename[..filename.len()-1];
+                                            current_directory.push(dirname);
+                                            load_directory_contents(&mut available_files, &current_directory, true);
+                                            file_list_state.select(Some(0));
+                                        } else if filename.starts_with('(') && filename.ends_with(')') {
+                                            // Skip placeholder messages
+                                        } else {
+                                            // Pre-fill the filename from selected file
+                                            save_filename = filename.clone();
+                                            dialog_cursor_pos = save_filename.len();
+                                        }
+                                    }
+                                } else if !save_filename.is_empty() {
+                                    // Save with the typed filename
                                     let mut filepath = current_directory.clone();
                                     filepath.push(&save_filename);
                                     match save_conversation(&client, &filepath) {
                                         Ok(_) => status = format!("Conversation saved to {}", filepath.display()),
                                         Err(e) => status = format!("Save failed: {}", e),
                                     }
+                                    show_save_dialog = false;
+                                    save_filename.clear();
+                                    dialog_cursor_pos = 0;
                                 }
-                                show_save_dialog = false;
-                                save_filename.clear();
-                                dialog_cursor_pos = 0;
                             }
                             KeyCode::Esc => {
                                 show_save_dialog = false;
                                 save_filename.clear();
                                 dialog_cursor_pos = 0;
+                            }
+                            KeyCode::Up => {
+                                if let Some(selected) = file_list_state.selected() {
+                                    if selected > 0 {
+                                        file_list_state.select(Some(selected - 1));
+                                    }
+                                }
+                            }
+                            KeyCode::Down => {
+                                if let Some(selected) = file_list_state.selected() {
+                                    if selected < available_files.len().saturating_sub(1) {
+                                        file_list_state.select(Some(selected + 1));
+                                    }
+                                }
                             }
                             KeyCode::Backspace => {
                                 if !save_filename.is_empty() && dialog_cursor_pos > 0 {
@@ -481,7 +538,7 @@ async fn main() -> Result<()> {
                                         Ok(_) => {
                                             status = format!("Directory created: {}", new_dir_path.display());
                                             current_directory = new_dir_path;
-                                            load_directory_contents(&mut available_files, &current_directory);
+                                            load_directory_contents(&mut available_files, &current_directory, true);
                                             file_list_state.select(Some(0));
                                         }
                                         Err(e) => {
@@ -521,16 +578,13 @@ async fn main() -> Result<()> {
                                         if filename == "../" {
                                             if let Some(parent) = current_directory.parent() {
                                                 current_directory = parent.to_path_buf();
-                                                load_directory_contents(&mut available_files, &current_directory);
+                                                load_directory_contents(&mut available_files, &current_directory, false);
                                                 file_list_state.select(Some(0));
                                             }
-                                        } else if filename == "[ Create New Directory ]" {
-                                            show_create_dir_dialog = true;
-                                            new_dir_name.clear();
                                         } else if filename.ends_with('/') {
                                             let dirname = &filename[..filename.len()-1];
                                             current_directory.push(dirname);
-                                            load_directory_contents(&mut available_files, &current_directory);
+                                            load_directory_contents(&mut available_files, &current_directory, false);
                                             file_list_state.select(Some(0));
                                         } else if filename.starts_with('(') && filename.ends_with(')') {
                                             // Skip placeholder messages
@@ -578,12 +632,14 @@ async fn main() -> Result<()> {
                             save_filename.clear();
                             dialog_cursor_pos = 0;
                             current_directory = get_saves_directory();
+                            load_directory_contents(&mut available_files, &current_directory, true);
+                            file_list_state.select(Some(0));
                             input.clear();
                             cursor_position = 0;
                         } else if input == "/load" {
                             show_load_dialog = true;
-                            current_directory = get_saves_directory(); // This now returns home dir
-                            load_directory_contents(&mut available_files, &current_directory);
+                            current_directory = get_saves_directory();
+                            load_directory_contents(&mut available_files, &current_directory, false);
                             file_list_state.select(Some(0));
                             input.clear();
                             cursor_position = 0;
@@ -905,12 +961,14 @@ async fn main() -> Result<()> {
                             save_filename.clear();
                             dialog_cursor_pos = 0;
                             current_directory = get_saves_directory();
+                            load_directory_contents(&mut available_files, &current_directory, true);
+                            file_list_state.select(Some(0));
                             input.clear();
                             cursor_position = 0;
                         } else if input == "/load" && c == ' ' {
                             show_load_dialog = true;
                             current_directory = get_saves_directory();
-                            load_directory_contents(&mut available_files, &current_directory);
+                            load_directory_contents(&mut available_files, &current_directory, false);
                             file_list_state.select(Some(0));
                             input.clear();
                             cursor_position = 0;
