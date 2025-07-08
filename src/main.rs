@@ -108,7 +108,11 @@ async fn main() -> Result<()> {
     let mut input_draft: Option<String> = None;  // Save current input when browsing history
 
     // Channel for API responses
-    let (tx, mut rx) = mpsc::channel::<(String, u32, u32, Vec<Message>)>(10);
+    let (tx, mut rx) = mpsc::channel::<Result<(String, u32, u32, Vec<Message>), String>>(10);
+
+    // Add these state variables after the other state variables (around line 90):
+    let mut show_error_dialog = false;
+    let mut error_message = String::new();
 
     loop {
         // Check for new messages BEFORE drawing
@@ -251,6 +255,34 @@ async fn main() -> Result<()> {
             let token_usage = Paragraph::new(token_usage_text)
                 .block(Block::default().borders(Borders::ALL).title("Token Usage"));
             f.render_widget(token_usage, bottom_chunks[1]);
+
+            // Error dialog overlay (render last so it appears on top)
+            if show_error_dialog {
+                let error_area = ratatui::layout::Rect {
+                    x: size.width / 4,
+                    y: size.height / 4,
+                    width: size.width / 2,
+                    height: size.height / 4,
+                };
+                
+                // Clear the area first
+                f.render_widget(
+                    ratatui::widgets::Clear,
+                    error_area
+                );
+                
+                // Render the error dialog
+                let error_dialog = Paragraph::new(error_message.clone())
+                    .block(Block::default()
+                        .borders(Borders::ALL)
+                        .title("Error")
+                        .title_style(ratatui::style::Style::default().fg(ratatui::style::Color::Red))
+                    )
+                    .wrap(Wrap { trim: false })
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
+                
+                f.render_widget(error_dialog, error_area);
+            }
         })?;
 
         // Event handling
@@ -262,6 +294,15 @@ async fn main() -> Result<()> {
             }) = event::read()?
             {
                 match code {
+                    // Handle error dialog dismissal first
+                    KeyCode::Enter | KeyCode::Esc | KeyCode::Char(' ') if show_error_dialog => {
+                        show_error_dialog = false;
+                        error_message.clear();
+                    }
+                    // Only process other keys if error dialog is not shown
+                    _ if show_error_dialog => {
+                        // Ignore all other input when error dialog is shown
+                    }
                     KeyCode::Char('c') if modifiers == KeyModifiers::CONTROL => {
                         break;
                     }
@@ -308,11 +349,12 @@ async fn main() -> Result<()> {
                                             temperature,
                                             simulate,
                                         ).await {
-                                            Ok((response, input_tokens, outputTokens, updated_messages)) => {
-                                                tx_clone.send((response, input_tokens, outputTokens, updated_messages)).await.ok();
+                                            Ok((response, input_tokens, output_tokens, updated_messages)) => {
+                                                tx_clone.send(Ok((response, input_tokens, output_tokens, updated_messages))).await.ok();
                                             }
                                             Err(e) => {
-                                                eprintln!("API Error: {}", e);
+                                                let error_msg = format!("API Error: {}", e);
+                                                tx_clone.send(Err(error_msg)).await.ok();
                                             }
                                         }
                                     });
@@ -364,10 +406,11 @@ async fn main() -> Result<()> {
                                         simulate,
                                     ).await {
                                         Ok((response, inputTokens, outputTokens, updated_messages)) => {
-                                            tx_clone.send((response, inputTokens, outputTokens, updated_messages)).await.ok();
+                                            tx_clone.send(Ok((response, inputTokens, outputTokens, updated_messages))).await.ok();
                                         }
                                         Err(e) => {
-                                            eprintln!("API Error: {}", e);
+                                            let error_msg = format!("API Error: {}", e);
+                                            tx_clone.send(Err(error_msg)).await.ok();
                                         }
                                     }
                                 });
@@ -420,10 +463,11 @@ async fn main() -> Result<()> {
                                             simulate,
                                         ).await {
                                             Ok((response, inputTokens, outputTokens, updated_messages)) => {
-                                                tx_clone.send((response, inputTokens, outputTokens, updated_messages)).await.ok();
+                                                tx_clone.send(Ok((response, inputTokens, outputTokens, updated_messages))).await.ok();
                                             }
                                             Err(e) => {
-                                                eprintln!("API Error: {}", e);
+                                                let error_msg = format!("API Error: {}", e);
+                                                tx_clone.send(Err(error_msg)).await.ok();
                                             }
                                         }
                                     });
@@ -588,21 +632,28 @@ async fn main() -> Result<()> {
         }
 
         // Check for API responses
-        if let Ok((response, input_tokens, output_tokens, updated_messages)) = rx.try_recv() {
+        if let Ok(result) = rx.try_recv() {
             waiting = false;
             status = "Ready".to_string();
             
-            // Update messages
-            // Only add the assistant's response (the last message in updated_messages)
-            if let Some(assistant_msg) = updated_messages.last() {
-                if assistant_msg.role == "assistant" {
-                    client.messages.push(assistant_msg.clone());
+            match result {
+                Ok((response, input_tokens, output_tokens, updated_messages)) => {
+                    // Normal response handling
+                    if let Some(assistant_msg) = updated_messages.last() {
+                        if assistant_msg.role == "assistant" {
+                            client.messages.push(assistant_msg.clone());
+                        }
+                    }
+                    
+                    client.total_input_tokens += input_tokens;
+                    client.total_output_tokens += output_tokens;
+                }
+                Err(error_msg) => {
+                    // Show the actual error message
+                    show_error_dialog = true;
+                    error_message = error_msg;
                 }
             }
-            
-            // Update token counts
-            client.total_input_tokens += input_tokens;
-            client.total_output_tokens += output_tokens;
         }
 
         // Update progress animation for waiting state
