@@ -431,18 +431,22 @@ async fn main() -> Result<()> {
                             }
                         }
                     }
-                    KeyCode::Char('v') if modifiers == KeyModifiers::CONTROL => {
-                        // TODO: Implement proper clipboard handling
-                        // For now, just skip it
-                    }
                     KeyCode::Backspace => {
                         if cursor_position > 0 {
-                            input.remove(cursor_position - 1);
-                            cursor_position -= 1;
+                            let mut chars: Vec<char> = input.chars().collect();
+                            if cursor_position <= chars.len() {
+                                chars.remove(cursor_position - 1);
+                                input = chars.into_iter().collect();
+                                cursor_position -= 1;
+                            }
                         }
                     }
                     KeyCode::Delete => {
-                        input.remove(cursor_position);
+                        let mut chars: Vec<char> = input.chars().collect();
+                        if cursor_position < chars.len() {
+                            chars.remove(cursor_position);
+                            input = chars.into_iter().collect();
+                        }
                     }
                     KeyCode::Left => {
                         if cursor_position > 0 {
@@ -579,7 +583,9 @@ async fn main() -> Result<()> {
                         }
                     }
                     KeyCode::Char(c) => {
-                        input.insert(cursor_position, c);
+                        let mut chars: Vec<char> = input.chars().collect();
+                        chars.insert(cursor_position, c);
+                        input = chars.into_iter().collect();
                         cursor_position += 1;
                     }
                     _ => {}
