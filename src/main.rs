@@ -450,84 +450,7 @@ async fn main() -> Result<()> {
             }) = event::read()?
             {
                 match code {
-                    // Handle dialog inputs first
-                    _ if show_save_dialog => {
-                        match code {
-                            KeyCode::Enter => {
-                                if let Some(selected) = file_list_state.selected() {
-                                    if selected < available_files.len() {
-                                        let filename = &available_files[selected];
-                                        if filename == "../" {
-                                            if let Some(parent) = current_directory.parent() {
-                                                current_directory = parent.to_path_buf();
-                                                load_directory_contents(&mut available_files, &current_directory, true);
-                                                file_list_state.select(Some(0));
-                                            }
-                                        } else if filename == "[ Create New Directory ]" {
-                                            show_create_dir_dialog = true;
-                                            new_dir_name.clear();
-                                        } else if filename.ends_with('/') {
-                                            let dirname = &filename[..filename.len()-1];
-                                            current_directory.push(dirname);
-                                            load_directory_contents(&mut available_files, &current_directory, true);
-                                            file_list_state.select(Some(0));
-                                        } else if filename.starts_with('(') && filename.ends_with(')') {
-                                            // Skip placeholder messages
-                                        } else {
-                                            // Pre-fill the filename from selected file
-                                            save_filename = filename.clone();
-                                            dialog_cursor_pos = save_filename.len();
-                                        }
-                                    }
-                                } else if !save_filename.is_empty() {
-                                    // Save with the typed filename
-                                    let mut filepath = current_directory.clone();
-                                    filepath.push(&save_filename);
-                                    match save_conversation(&client, &filepath) {
-                                        Ok(_) => status = format!("Conversation saved to {}", filepath.display()),
-                                        Err(e) => status = format!("Save failed: {}", e),
-                                    }
-                                    show_save_dialog = false;
-                                    save_filename.clear();
-                                    dialog_cursor_pos = 0;
-                                }
-                            }
-                            KeyCode::Esc => {
-                                show_save_dialog = false;
-                                save_filename.clear();
-                                dialog_cursor_pos = 0;
-                            }
-                            KeyCode::Up => {
-                                if let Some(selected) = file_list_state.selected() {
-                                    if selected > 0 {
-                                        file_list_state.select(Some(selected - 1));
-                                    }
-                                }
-                            }
-                            KeyCode::Down => {
-                                if let Some(selected) = file_list_state.selected() {
-                                    if selected < available_files.len().saturating_sub(1) {
-                                        file_list_state.select(Some(selected + 1));
-                                    }
-                                }
-                            }
-                            KeyCode::Backspace => {
-                                if !save_filename.is_empty() && dialog_cursor_pos > 0 {
-                                    let mut chars: Vec<char> = save_filename.chars().collect();
-                                    chars.remove(dialog_cursor_pos - 1);
-                                    save_filename = chars.into_iter().collect();
-                                    dialog_cursor_pos -= 1;
-                                }
-                            }
-                            KeyCode::Char(c) => {
-                                let mut chars: Vec<char> = save_filename.chars().collect();
-                                chars.insert(dialog_cursor_pos, c);
-                                save_filename = chars.into_iter().collect();
-                                dialog_cursor_pos += 1;
-                            }
-                            _ => {}
-                        }
-                    }
+                    // Handle create directory dialog FIRST (highest priority)
                     _ if show_create_dir_dialog => {
                         match code {
                             KeyCode::Enter => {
@@ -538,7 +461,7 @@ async fn main() -> Result<()> {
                                         Ok(_) => {
                                             status = format!("Directory created: {}", new_dir_path.display());
                                             current_directory = new_dir_path;
-                                            load_directory_contents(&mut available_files, &current_directory, true);
+                                            load_directory_contents(&mut available_files, &current_directory, show_save_dialog);
                                             file_list_state.select(Some(0));
                                         }
                                         Err(e) => {
@@ -569,6 +492,121 @@ async fn main() -> Result<()> {
                             _ => {}
                         }
                     }
+                    // Handle save dialog with dual input modes
+                    _ if show_save_dialog => {
+                        match code {
+                            KeyCode::Enter => {
+                                // If we have a filename typed, save it
+                                if !save_filename.is_empty() {
+                                    let mut filepath = current_directory.clone();
+                                    filepath.push(&save_filename);
+                                    match save_conversation(&client, &filepath) {
+                                        Ok(_) => status = format!("Conversation saved to {}", filepath.display()),
+                                        Err(e) => status = format!("Save failed: {}", e),
+                                    }
+                                    show_save_dialog = false;
+                                    save_filename.clear();
+                                    dialog_cursor_pos = 0;
+                                } else if let Some(selected) = file_list_state.selected() {
+                                    // If no filename typed, handle navigation
+                                    if selected < available_files.len() {
+                                        let filename = &available_files[selected];
+                                        if filename == "../" {
+                                            if let Some(parent) = current_directory.parent() {
+                                                current_directory = parent.to_path_buf();
+                                                load_directory_contents(&mut available_files, &current_directory, true);
+                                                file_list_state.select(Some(0));
+                                            }
+                                        } else if filename == "[ Create New Directory ]" {
+                                            show_create_dir_dialog = true;
+                                            new_dir_name.clear();
+                                        } else if filename.ends_with('/') {
+                                            let dirname = &filename[..filename.len()-1];
+                                            current_directory.push(dirname);
+                                            load_directory_contents(&mut available_files, &current_directory, true);
+                                            file_list_state.select(Some(0));
+                                        } else if !filename.starts_with('(') {
+                                            // Pre-fill the filename from selected file
+                                            save_filename = filename.clone();
+                                            dialog_cursor_pos = save_filename.len();
+                                        }
+                                    }
+                                }
+                            }
+                            KeyCode::Esc => {
+                                show_save_dialog = false;
+                                save_filename.clear();
+                                dialog_cursor_pos = 0;
+                            }
+                            KeyCode::Tab => {
+                                // Tab key to focus on filename input and clear selection
+                                if let Some(selected) = file_list_state.selected() {
+                                    if selected < available_files.len() {
+                                        let filename = &available_files[selected];
+                                        if !filename.starts_with('(') && !filename.ends_with('/') && filename != "../" && filename != "[ Create New Directory ]" {
+                                            save_filename = filename.clone();
+                                            dialog_cursor_pos = save_filename.len();
+                                        }
+                                    }
+                                }
+                                file_list_state.select(None); // Deselect to focus on filename input
+                            }
+                            KeyCode::Up if file_list_state.selected().is_some() => {
+                                if let Some(selected) = file_list_state.selected() {
+                                    if selected > 0 {
+                                        file_list_state.select(Some(selected - 1));
+                                    }
+                                }
+                            }
+                            KeyCode::Down if file_list_state.selected().is_some() => {
+                                if let Some(selected) = file_list_state.selected() {
+                                    if selected < available_files.len().saturating_sub(1) {
+                                        file_list_state.select(Some(selected + 1));
+                                    }
+                                } else if !available_files.is_empty() {
+                                    file_list_state.select(Some(0));
+                                }
+                            }
+                            KeyCode::Up if file_list_state.selected().is_none() => {
+                                // If not in list mode, allow up/down to enter list navigation
+                                if !available_files.is_empty() {
+                                    file_list_state.select(Some(available_files.len() - 1));
+                                }
+                            }
+                            KeyCode::Down if file_list_state.selected().is_none() => {
+                                // If not in list mode, allow up/down to enter list navigation
+                                if !available_files.is_empty() {
+                                    file_list_state.select(Some(0));
+                                }
+                            }
+                            KeyCode::Backspace if file_list_state.selected().is_none() => {
+                                // Only edit filename if not navigating list
+                                if !save_filename.is_empty() && dialog_cursor_pos > 0 {
+                                    let mut chars: Vec<char> = save_filename.chars().collect();
+                                    chars.remove(dialog_cursor_pos - 1);
+                                    save_filename = chars.into_iter().collect();
+                                    dialog_cursor_pos -= 1;
+                                }
+                            }
+                            KeyCode::Char(c) if file_list_state.selected().is_none() => {
+                                // Only add to filename if not navigating list
+                                let mut chars: Vec<char> = save_filename.chars().collect();
+                                chars.insert(dialog_cursor_pos, c);
+                                save_filename = chars.into_iter().collect();
+                                dialog_cursor_pos += 1;
+                            }
+                            KeyCode::Char(c) if file_list_state.selected().is_some() => {
+                                // If typing while list is selected, switch to filename input mode
+                                file_list_state.select(None);
+                                let mut chars: Vec<char> = save_filename.chars().collect();
+                                chars.insert(dialog_cursor_pos, c);
+                                save_filename = chars.into_iter().collect();
+                                dialog_cursor_pos += 1;
+                            }
+                            _ => {}
+                        }
+                    }
+                    // Handle load dialog (simpler, navigation only)
                     _ if show_load_dialog => {
                         match code {
                             KeyCode::Enter => {
@@ -612,6 +650,8 @@ async fn main() -> Result<()> {
                                     if selected > 0 {
                                         file_list_state.select(Some(selected - 1));
                                     }
+                                } else if !available_files.is_empty() {
+                                    file_list_state.select(Some(available_files.len() - 1));
                                 }
                             }
                             KeyCode::Down => {
@@ -619,11 +659,14 @@ async fn main() -> Result<()> {
                                     if selected < available_files.len().saturating_sub(1) {
                                         file_list_state.select(Some(selected + 1));
                                     }
+                                } else if !available_files.is_empty() {
+                                    file_list_state.select(Some(0));
                                 }
                             }
                             _ => {}
                         }
                     }
+                    // Rest of the normal key handling...
                     KeyCode::Char('c') if modifiers == KeyModifiers::CONTROL => break,
                     KeyCode::Enter => {
                         // Check for commands first
