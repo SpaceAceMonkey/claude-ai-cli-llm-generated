@@ -159,10 +159,6 @@ fn load_conversation(filepath: &PathBuf) -> Result<SavedConversation> {
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Feature flag constants
-    const SCROLL_ON_USER_INPUT: bool = true;  // Feature flag for scrolling on user input
-    const SCROLL_ON_API_RESPONSE: bool = true; // Feature flag for scrolling on API response
-
     // Setup TUI
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -210,6 +206,10 @@ async fn main() -> Result<()> {
     // New state variables
     let mut show_create_dir_dialog = false;
     let mut new_dir_name = String::new();
+
+    // Add this to the state variables section (around line 175):
+    let mut show_exit_dialog = false;
+    let mut exit_selected = 0; // 0 = Yes, 1 = No
 
     loop {
         // Check for new messages BEFORE drawing
@@ -364,33 +364,44 @@ async fn main() -> Result<()> {
                 
                 f.render_widget(Clear, dialog_area);
                 
+                // Split the dialog area to reserve space for filename input
+                let dialog_layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Min(5),     // File list (minimum 5 lines)
+                        Constraint::Length(3),  // Filename input area (1 line + 2 borders)
+                    ])
+                    .split(ratatui::layout::Rect {
+                        x: dialog_area.x,
+                        y: dialog_area.y,
+                        width: dialog_area.width,
+                        height: dialog_area.height,
+                    });
+                
+                // Render file list in the top section
                 let file_items: Vec<ListItem> = available_files.iter().map(|f| ListItem::new(f.as_str())).collect();
                 
                 let file_list = List::new(file_items)
                     .block(Block::default()
                         .borders(Borders::ALL)
-                        .title(format!("Save Conversation - {} (↑↓ to select, Enter to save/navigate, Esc to cancel)", current_directory.display())))
+                        .title(format!("Save Conversation - {} (↑↓ to select, Enter to save/navigate, Tab to copy filename)", current_directory.display())))
                     .highlight_style(ratatui::style::Style::default().bg(ratatui::style::Color::Blue))
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                 
-                f.render_stateful_widget(file_list, dialog_area, &mut file_list_state);
+                f.render_stateful_widget(file_list, dialog_layout[0], &mut file_list_state);
                 
-                // Show filename input at the bottom of the dialog
-                let input_area = ratatui::layout::Rect {
-                    x: dialog_area.x + 1,
-                    y: dialog_area.y + dialog_area.height - 3,
-                    width: dialog_area.width - 2,
-                    height: 1,
-                };
-                
+                // Render filename input in the bottom section
                 let filename_input = Paragraph::new(format!("Filename: {}", save_filename))
+                    .block(Block::default()
+                        .borders(Borders::ALL)
+                        .title("Enter filename (Esc to cancel)"))
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::DarkGray));
-                f.render_widget(filename_input, input_area);
+                f.render_widget(filename_input, dialog_layout[1]);
                 
-                // Set cursor after filename prompt
+                // Set cursor in the filename input area
                 f.set_cursor(
-                    input_area.x + "Filename: ".len() as u16 + save_filename.len() as u16,
-                    input_area.y,
+                    dialog_layout[1].x + "Filename: ".len() as u16 + save_filename.len() as u16 + 1,
+                    dialog_layout[1].y + 1,
                 );
             }
             
@@ -444,6 +455,73 @@ async fn main() -> Result<()> {
                 );
             }
 
+            // Exit confirmation dialog overlay (render last so it appears on top)
+            if show_exit_dialog {
+                let dialog_area = ratatui::layout::Rect {
+                    x: size.width / 3,
+                    y: size.height / 2 - 3,
+                    width: size.width / 3,
+                    height: 6,
+                };
+                
+                f.render_widget(Clear, dialog_area);
+                
+                let exit_dialog = Paragraph::new("Exit the program?\n\nUse ↑↓ or Y/N to select, Enter to confirm.")
+                    .block(Block::default()
+                        .borders(Borders::ALL)
+                        .title("Confirm Exit"))
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black))
+                    .wrap(Wrap { trim: false });
+                
+                f.render_widget(exit_dialog, dialog_area);
+                
+                // Render Yes/No options
+                let options_area = ratatui::layout::Rect {
+                    x: dialog_area.x + 2,
+                    y: dialog_area.y + 4,
+                    width: dialog_area.width - 4,
+                    height: 1,
+                };
+                
+                let yes_style = if exit_selected == 0 {
+                    ratatui::style::Style::default().bg(ratatui::style::Color::Blue).fg(ratatui::style::Color::White)
+                } else {
+                    ratatui::style::Style::default()
+                };
+                
+                let no_style = if exit_selected == 1 {
+                    ratatui::style::Style::default().bg(ratatui::style::Color::Blue).fg(ratatui::style::Color::White)
+                } else {
+                    ratatui::style::Style::default()
+                };
+                
+                let options = Paragraph::new("  [Yes]     [No]  ")
+                    .style(ratatui::style::Style::default());
+                f.render_widget(options, options_area);
+                
+                // Highlight the selected option
+                let highlight_area = if exit_selected == 0 {
+                    ratatui::layout::Rect {
+                        x: options_area.x + 2,
+                        y: options_area.y,
+                        width: 5,
+                        height: 1,
+                    }
+                } else {
+                    ratatui::layout::Rect {
+                        x: options_area.x + 12,
+                        y: options_area.y,
+                        width: 4,
+                        height: 1,
+                    }
+                };
+                
+                let highlight_text = if exit_selected == 0 { "[Yes]" } else { "[No]" };
+                let highlight = Paragraph::new(highlight_text)
+                    .style(ratatui::style::Style::default().bg(ratatui::style::Color::Blue).fg(ratatui::style::Color::White));
+                f.render_widget(highlight, highlight_area);
+            }
+
             // Error dialog overlay (render last so it appears on top)
             if show_error_dialog {
                 let error_area = ratatui::layout::Rect {
@@ -453,19 +531,13 @@ async fn main() -> Result<()> {
                     height: size.height / 4,
                 };
                 
-                // Clear the area first
-                f.render_widget(
-                    ratatui::widgets::Clear,
-                    error_area
-                );
+                f.render_widget(Clear, error_area);
                 
-                // Render the error dialog
                 let error_dialog = Paragraph::new(error_message.clone())
                     .block(Block::default()
                         .borders(Borders::ALL)
                         .title("Error")
-                        .title_style(ratatui::style::Style::default().fg(ratatui::style::Color::Red))
-                    )
+                        .title_style(ratatui::style::Style::default().fg(ratatui::style::Color::Red)))
                     .wrap(Wrap { trim: false })
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                 
@@ -491,7 +563,43 @@ async fn main() -> Result<()> {
                     _ if show_error_dialog => {
                         // Ignore all other input when error dialog is shown
                     }
-                    // Handle create directory dialog FIRST (highest priority after error)
+                    // Handle exit dialog 
+                    _ if show_exit_dialog => {
+                        match code {
+                            KeyCode::Enter => {
+                                if exit_selected == 0 {
+                                    // Yes - exit the program
+                                    break;
+                                } else {
+                                    // No - close dialog and continue
+                                    show_exit_dialog = false;
+                                    exit_selected = 0;
+                                }
+                            }
+                            KeyCode::Esc => {
+                                // Cancel - close dialog
+                                show_exit_dialog = false;
+                                exit_selected = 0;
+                            }
+                            KeyCode::Up | KeyCode::Left => {
+                                exit_selected = 0; // Select Yes
+                            }
+                            KeyCode::Down | KeyCode::Right => {
+                                exit_selected = 1; // Select No
+                            }
+                            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                                // Yes - exit immediately
+                                break;
+                            }
+                            KeyCode::Char('n') | KeyCode::Char('N') => {
+                                // No - close dialog and continue
+                                show_exit_dialog = false;
+                                exit_selected = 0;
+                            }
+                            _ => {}
+                        }
+                    }
+                    // Handle create directory dialog
                     _ if show_create_dir_dialog => {
                         match code {
                             KeyCode::Enter => {
@@ -533,11 +641,10 @@ async fn main() -> Result<()> {
                             _ => {}
                         }
                     }
-                    // Handle save dialog with dual input modes
+                    // Handle save dialog
                     _ if show_save_dialog => {
                         match code {
                             KeyCode::Enter => {
-                                // If we have a filename typed, save it
                                 if !save_filename.is_empty() {
                                     let mut filepath = current_directory.clone();
                                     filepath.push(&save_filename);
@@ -549,7 +656,6 @@ async fn main() -> Result<()> {
                                     save_filename.clear();
                                     dialog_cursor_pos = 0;
                                 } else if let Some(selected) = file_list_state.selected() {
-                                    // If no filename typed, handle navigation
                                     if selected < available_files.len() {
                                         let filename = &available_files[selected];
                                         if filename == "../" {
@@ -567,7 +673,6 @@ async fn main() -> Result<()> {
                                             load_directory_contents(&mut available_files, &current_directory, true);
                                             file_list_state.select(Some(0));
                                         } else if !filename.starts_with('(') {
-                                            // Pre-fill the filename from selected file
                                             save_filename = filename.clone();
                                             dialog_cursor_pos = save_filename.len();
                                         }
@@ -579,27 +684,16 @@ async fn main() -> Result<()> {
                                 save_filename.clear();
                                 dialog_cursor_pos = 0;
                             }
-                            KeyCode::Tab => {
-                                // Tab key to focus on filename input and clear selection
-                                if let Some(selected) = file_list_state.selected() {
-                                    if selected < available_files.len() {
-                                        let filename = &available_files[selected];
-                                        if !filename.starts_with('(') && !filename.ends_with('/') && filename != "../" && filename != "[ Create New Directory ]" {
-                                            save_filename = filename.clone();
-                                            dialog_cursor_pos = save_filename.len();
-                                        }
-                                    }
-                                }
-                                file_list_state.select(None); // Deselect to focus on filename input
-                            }
-                            KeyCode::Up if file_list_state.selected().is_some() => {
+                            KeyCode::Up => {
                                 if let Some(selected) = file_list_state.selected() {
                                     if selected > 0 {
                                         file_list_state.select(Some(selected - 1));
                                     }
+                                } else if !available_files.is_empty() {
+                                    file_list_state.select(Some(available_files.len() - 1));
                                 }
                             }
-                            KeyCode::Down if file_list_state.selected().is_some() => {
+                            KeyCode::Down => {
                                 if let Some(selected) = file_list_state.selected() {
                                     if selected < available_files.len().saturating_sub(1) {
                                         file_list_state.select(Some(selected + 1));
@@ -608,20 +702,7 @@ async fn main() -> Result<()> {
                                     file_list_state.select(Some(0));
                                 }
                             }
-                            KeyCode::Up if file_list_state.selected().is_none() => {
-                                // If not in list mode, allow up/down to enter list navigation
-                                if !available_files.is_empty() {
-                                    file_list_state.select(Some(available_files.len() - 1));
-                                }
-                            }
-                            KeyCode::Down if file_list_state.selected().is_none() => {
-                                // If not in list mode, allow up/down to enter list navigation
-                                if !available_files.is_empty() {
-                                    file_list_state.select(Some(0));
-                                }
-                            }
-                            KeyCode::Backspace if file_list_state.selected().is_none() => {
-                                // Only edit filename if not navigating list
+                            KeyCode::Backspace => {
                                 if !save_filename.is_empty() && dialog_cursor_pos > 0 {
                                     let mut chars: Vec<char> = save_filename.chars().collect();
                                     chars.remove(dialog_cursor_pos - 1);
@@ -629,16 +710,7 @@ async fn main() -> Result<()> {
                                     dialog_cursor_pos -= 1;
                                 }
                             }
-                            KeyCode::Char(c) if file_list_state.selected().is_none() => {
-                                // Only add to filename if not navigating list
-                                let mut chars: Vec<char> = save_filename.chars().collect();
-                                chars.insert(dialog_cursor_pos, c);
-                                save_filename = chars.into_iter().collect();
-                                dialog_cursor_pos += 1;
-                            }
-                            KeyCode::Char(c) if file_list_state.selected().is_some() => {
-                                // If typing while list is selected, switch to filename input mode
-                                file_list_state.select(None);
+                            KeyCode::Char(c) => {
                                 let mut chars: Vec<char> = save_filename.chars().collect();
                                 chars.insert(dialog_cursor_pos, c);
                                 save_filename = chars.into_iter().collect();
@@ -647,7 +719,7 @@ async fn main() -> Result<()> {
                             _ => {}
                         }
                     }
-                    // Handle load dialog (simpler, navigation only)
+                    // Handle load dialog
                     _ if show_load_dialog => {
                         match code {
                             KeyCode::Enter => {
@@ -665,9 +737,7 @@ async fn main() -> Result<()> {
                                             current_directory.push(dirname);
                                             load_directory_contents(&mut available_files, &current_directory, false);
                                             file_list_state.select(Some(0));
-                                        } else if filename.starts_with('(') && filename.ends_with(')') {
-                                            // Skip placeholder messages
-                                        } else {
+                                        } else if !filename.starts_with('(') {
                                             let mut filepath = current_directory.clone();
                                             filepath.push(filename);
                                             match load_conversation(&filepath) {
@@ -685,7 +755,9 @@ async fn main() -> Result<()> {
                                     }
                                 }
                             }
-                            KeyCode::Esc => show_load_dialog = false,
+                            KeyCode::Esc => {
+                                show_load_dialog = false;
+                            }
                             KeyCode::Up => {
                                 if let Some(selected) = file_list_state.selected() {
                                     if selected > 0 {
@@ -707,8 +779,14 @@ async fn main() -> Result<()> {
                             _ => {}
                         }
                     }
-                    // Rest of the normal key handling...
-                    KeyCode::Char('c') if modifiers == KeyModifiers::CONTROL => break,
+                    // Handle main interface - Escape shows exit dialog ONLY when no other dialogs are open
+                    KeyCode::Esc => {
+                        // Show exit confirmation dialog only when in main interface
+                        show_exit_dialog = true;
+                        exit_selected = 0; // Default to Yes
+                    }
+                    // ... rest of main interface key handling (Enter, Char, etc.)
+
                     KeyCode::Enter => {
                         // Check for commands first
                         if input == "/save" {
@@ -880,8 +958,8 @@ async fn main() -> Result<()> {
                                             temperature,
                                             simulate,
                                         ).await {
-                                            Ok((response, inputTokens, outputTokens, updated_messages)) => {
-                                                tx_clone.send(Ok((response, inputTokens, outputTokens, updated_messages))).await.ok();
+                                            Ok((response, input_tokens, output_tokens, updated_messages)) => {
+                                                tx_clone.send(Ok((response, input_tokens, output_tokens, updated_messages))).await.ok();
                                             }
                                             Err(e) => {
                                                 let error_msg = format!("API Error: {}", e);
@@ -1065,7 +1143,9 @@ async fn main() -> Result<()> {
                             cursor_position += 1;
                         }
                     }
-                    _ => {}
+                    _ => {
+                        // Handle all other KeyCode variants
+                    }
                 }
             }
         }
