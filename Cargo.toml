@@ -1,7 +1,8 @@
 [package]
 name = "claude_ai_cli_llm_generated"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
+repository = "https://github.com/SpaceAceMonkey/claude-ai-cli-llm-generated"
 
 [[bin]]
 name = "claudecli"
