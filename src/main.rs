@@ -364,33 +364,44 @@ async fn main() -> Result<()> {
                 
                 f.render_widget(Clear, dialog_area);
                 
+                // Split the dialog area to reserve space for filename input
+                let dialog_layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Min(5),     // File list (minimum 5 lines)
+                        Constraint::Length(3),  // Filename input area (1 line + 2 borders)
+                    ])
+                    .split(ratatui::layout::Rect {
+                        x: dialog_area.x,
+                        y: dialog_area.y,
+                        width: dialog_area.width,
+                        height: dialog_area.height,
+                    });
+                
+                // Render file list in the top section
                 let file_items: Vec<ListItem> = available_files.iter().map(|f| ListItem::new(f.as_str())).collect();
                 
                 let file_list = List::new(file_items)
                     .block(Block::default()
                         .borders(Borders::ALL)
-                        .title(format!("Save Conversation - {} (↑↓ to select, Enter to save/navigate, Esc to cancel)", current_directory.display())))
+                        .title(format!("Save Conversation - {} (↑↓ to select, Enter to save/navigate, Tab to copy filename)", current_directory.display())))
                     .highlight_style(ratatui::style::Style::default().bg(ratatui::style::Color::Blue))
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::Black));
                 
-                f.render_stateful_widget(file_list, dialog_area, &mut file_list_state);
+                f.render_stateful_widget(file_list, dialog_layout[0], &mut file_list_state);
                 
-                // Show filename input at the bottom of the dialog
-                let input_area = ratatui::layout::Rect {
-                    x: dialog_area.x + 1,
-                    y: dialog_area.y + dialog_area.height - 3,
-                    width: dialog_area.width - 2,
-                    height: 1,
-                };
-                
+                // Render filename input in the bottom section
                 let filename_input = Paragraph::new(format!("Filename: {}", save_filename))
+                    .block(Block::default()
+                        .borders(Borders::ALL)
+                        .title("Enter filename (Esc to cancel)"))
                     .style(ratatui::style::Style::default().bg(ratatui::style::Color::DarkGray));
-                f.render_widget(filename_input, input_area);
+                f.render_widget(filename_input, dialog_layout[1]);
                 
-                // Set cursor after filename prompt
+                // Set cursor in the filename input area
                 f.set_cursor(
-                    input_area.x + "Filename: ".len() as u16 + save_filename.len() as u16,
-                    input_area.y,
+                    dialog_layout[1].x + "Filename: ".len() as u16 + save_filename.len() as u16 + 1,
+                    dialog_layout[1].y + 1,
                 );
             }
             
@@ -1065,7 +1076,9 @@ async fn main() -> Result<()> {
                             cursor_position += 1;
                         }
                     }
-                    _ => {}
+                    _ => {
+                        // Handle all other KeyCode variants
+                    }
                 }
             }
         }
