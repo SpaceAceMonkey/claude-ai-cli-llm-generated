@@ -83,8 +83,8 @@ impl SavedConversation {
     }
 
     fn validate(&self) -> bool {
-        // Validate the conversation file format
-        self.version == "1.0" && !self.messages.is_empty()
+        // Validate the conversation file format - empty messages are OK
+        self.version == "1.0"
     }
 }
 
