@@ -208,3 +208,44 @@ All models exhibited similar problems:
 ---
 
 *This entire project demonstrates both the capabilities and limitations of current AI language models in software development. While they can generate functional code with proper guidance, they require experienced human oversight to achieve production-quality results.*
+
+## Installation
+
+### Installing Rust
+
+Install Rust using rustup:
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+```
+
+For more details, visit [rustup.rs](https://rustup.rs/).
+
+### Clone this repository
+
+```bash
+git clone https://github.com/SpaceAceMonkey/claude-ai-cli-llm-generated.git
+cd claude-ai-cli-llm-generated
+```
+
+### Running with Cargo
+
+You can run the application directly using `cargo run`:
+
+**Real API Usage:**
+```bash
+# Basic usage with API key
+cargo run -- --api-key sk-ant-api03-xxxxx
+
+# With custom model and parameters
+cargo run -- --api-key sk-ant-api03-xxxxx --model claude-3-sonnet-20240229 --max-tokens 2048 --temperature 0.5
+```
+
+**Simulated Mode (for testing):**
+```bash
+# Test the UI without making API calls
+cargo run -- --api-key dummy-key --simulate
+
+# Simulate with different parameters
+cargo run -- --api-key dummy-key --simulate --max-tokens 1024 --temperature 0.9
+```
