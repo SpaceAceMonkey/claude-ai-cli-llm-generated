@@ -48,6 +48,11 @@ The screenshots in this README file were captured by a human user and are not AI
   - Multi-line input with proper word wrapping
   - Full cursor positioning with arrow keys
   - Home/End key support
+
+- **Performance Optimizations**:
+  - Intelligent caching of syntax-highlighted content
+  - Avoids expensive re-computation on every frame
+  - Significantly improves performance with code-heavy conversations
   - Backspace/Delete functionality
   - Command history navigation (Up/Down arrows)
 
