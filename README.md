@@ -53,8 +53,49 @@ The screenshots in this README file were captured by a human user and are not AI
   - Intelligent caching of syntax-highlighted content
   - Avoids expensive re-computation on every frame
   - Significantly improves performance with code-heavy conversations
-  - Backspace/Delete functionality
-  - Command history navigation (Up/Down arrows)
+
+## Keyboard Shortcuts
+
+### Input Navigation
+- **Arrow Keys**: Move cursor left/right in input field
+- **Home/End**: Move cursor to beginning/end of input
+- **Backspace/Delete**: Remove characters
+
+### Chat Scrolling
+The application provides multiple ways to scroll through chat history to ensure cross-platform compatibility:
+
+#### Primary Methods (Linux/Windows)
+- **Alt/Shift/Ctrl + Up/Down**: Line-by-line scrolling
+- **PageUp/PageDown**: Page-by-page scrolling
+
+#### Cross-Platform Alternatives (Especially for macOS)
+- **Ctrl+K/J**: Vi-style line scrolling (K=up, J=down)
+- **Ctrl+U/D**: Vi-style half-page scrolling (U=up, D=down)
+- **Ctrl+[/]**: Bracket key scrolling ([ =up, ]=down)
+- **Ctrl+-/=**: Minus/plus key scrolling (-=up, ==down)
+- **F1/F2**: Function key scrolling (F1=up, F2=down)
+
+#### Command History
+- **Up/Down** (without modifiers): Navigate through command history when input is empty
+
+### Message Sending
+- **Enter**: Send message (default)
+- **Shift+Enter**: Insert newline (when SHIFT_ENTER_SENDS is false)
+- **Ctrl+Enter**: Send message (alternative)
+
+### File Operations
+- **/save** command: Save conversation to file
+- **/load** command: Load conversation from file
+- **Ctrl+S**: Open save dialog
+- **Ctrl+L**: Open load dialog
+- **Ctrl+Q**: Show exit confirmation dialog
+- **Escape**: Cancel dialogs
+
+### Special Features
+- **Auto-scroll**: Automatically scrolls to bottom when new messages arrive
+- **Manual scroll**: Scrolling up disables auto-scroll; scrolling to bottom re-enables it
+
+> **Note**: On macOS, some key combinations may be intercepted by the terminal or system. The application provides multiple alternatives to ensure reliable operation across all platforms.
 
 ### Configurable Behaviors
 

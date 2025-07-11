@@ -72,6 +72,13 @@ pub async fn handle_key_event(
                 app.cursor_position += 1; 
             }
         }
+        // NOTE: macOS Terminal Issues with Modifier Keys
+        // On macOS, Alt+Arrow and Shift+Arrow combinations are often intercepted by:
+        // 1. Terminal applications for word jumping (Alt+Arrow)
+        // 2. System for text selection (Shift+Arrow)
+        // 3. Some terminals convert these to escape sequences that crossterm doesn't recognize
+        // This is why we provide multiple cross-platform alternatives below.
+        
         KeyCode::Up if modifiers.contains(KeyModifiers::CONTROL) || 
                        modifiers.contains(KeyModifiers::ALT) || 
                        modifiers.contains(KeyModifiers::SHIFT) => {
@@ -81,6 +88,63 @@ pub async fn handle_key_event(
                          modifiers.contains(KeyModifiers::ALT) || 
                          modifiers.contains(KeyModifiers::SHIFT) => {
             handle_chat_scroll_down(app, terminal_size);
+        }
+        // Cross-platform alternatives for chat scrolling (especially reliable on macOS)
+        KeyCode::Char('k') if modifiers.contains(KeyModifiers::CONTROL) => {
+            handle_chat_scroll_up(app);
+        }
+        KeyCode::Char('j') if modifiers.contains(KeyModifiers::CONTROL) => {
+            handle_chat_scroll_down(app, terminal_size);
+        }
+        // Vi-style half-page scrolling
+        KeyCode::Char('u') if modifiers.contains(KeyModifiers::CONTROL) => {
+            for _ in 0..5 {
+                handle_chat_scroll_up(app);
+            }
+        }
+        KeyCode::Char('d') if modifiers.contains(KeyModifiers::CONTROL) => {
+            for _ in 0..5 {
+                handle_chat_scroll_down(app, terminal_size);
+            }
+        }
+        // Additional cross-platform alternatives
+        KeyCode::Char('[') if modifiers.contains(KeyModifiers::CONTROL) => {
+            handle_chat_scroll_up(app);
+        }
+        KeyCode::Char(']') if modifiers.contains(KeyModifiers::CONTROL) => {
+            handle_chat_scroll_down(app, terminal_size);
+        }
+        KeyCode::Char('-') if modifiers.contains(KeyModifiers::CONTROL) => {
+            handle_chat_scroll_up(app);
+        }
+        KeyCode::Char('=') if modifiers.contains(KeyModifiers::CONTROL) => {
+            handle_chat_scroll_down(app, terminal_size);
+        }
+        // Function keys for cross-platform compatibility
+        KeyCode::F(1) => {
+            handle_chat_scroll_up(app);
+        }
+        KeyCode::F(2) => {
+            handle_chat_scroll_down(app, terminal_size);
+        }
+        // File operation shortcuts
+        KeyCode::Char('s') if modifiers.contains(KeyModifiers::CONTROL) => {
+            app.show_save_dialog = true;
+            app.save_filename.clear();
+            app.dialog_cursor_pos = 0;
+            app.current_directory = get_saves_directory();
+            load_directory_contents(&mut app.available_files, &app.current_directory, true);
+            app.file_list_state.select(Some(0));
+        }
+        KeyCode::Char('l') if modifiers.contains(KeyModifiers::CONTROL) => {
+            app.show_load_dialog = true;
+            app.current_directory = get_saves_directory();
+            load_directory_contents(&mut app.available_files, &app.current_directory, false);
+            app.file_list_state.select(Some(0));
+        }
+        KeyCode::Char('q') if modifiers.contains(KeyModifiers::CONTROL) => {
+            app.show_exit_dialog = true;
+            app.exit_selected = 0;
         }
         KeyCode::Up => {
             handle_up_key(app, terminal_size);
