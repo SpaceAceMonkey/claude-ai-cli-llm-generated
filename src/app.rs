@@ -1,5 +1,6 @@
 // src/app.rs
 use crate::client::ConversationClient;
+use crate::api::HighlightCache;
 use rustyline::Editor;
 use ratatui::widgets::ListState;
 use std::path::PathBuf;
@@ -20,6 +21,9 @@ pub struct AppState {
     pub input_draft: Option<String>,
     pub simulate_mode: bool,
     pub rl: Editor<(), rustyline::history::DefaultHistory>,
+    
+    // Highlighting cache
+    pub highlight_cache: HighlightCache,
     
     // Dialog state
     pub show_error_dialog: bool,
@@ -61,6 +65,9 @@ impl AppState {
             simulate_mode,
             rl: Editor::<(), rustyline::history::DefaultHistory>::new()?,
             
+            // Highlighting cache
+            highlight_cache: HighlightCache::new(),
+            
             // Dialog state
             show_error_dialog: false,
             error_message: String::new(),
@@ -76,5 +83,10 @@ impl AppState {
             show_exit_dialog: false,
             exit_selected: 0,
         })
+    }
+    
+    /// Clear the highlight cache when the conversation is cleared or changed
+    pub fn clear_highlight_cache(&mut self) {
+        self.highlight_cache.clear();
     }
 }

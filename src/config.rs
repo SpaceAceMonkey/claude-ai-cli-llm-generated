@@ -5,7 +5,7 @@ use clap::Parser;
 pub const SCROLL_ON_USER_INPUT: bool = true;
 pub const SCROLL_ON_API_RESPONSE: bool = true;
 pub const SHIFT_ENTER_SENDS: bool = false;
-pub const SHOW_DEBUG_MESSAGES: bool = true;
+pub const SHOW_DEBUG_MESSAGES: bool = false;
 
 pub const PROGRESS_FRAMES: [&str; 5] = ["    ", ".   ", "..  ", "... ", "...."];
 

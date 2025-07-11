@@ -8,7 +8,7 @@ use ratatui::{
 use crate::{
     app::AppState,
     config::*,
-    tui::format_message_for_tui,
+    tui::format_message_for_tui_cached,
     utils::{text::*, scroll::*},
     ui::dialogs::draw_dialogs,
 };
@@ -38,7 +38,7 @@ fn draw_chat(
 ) {
     let mut chat_spans = Vec::new();
     for msg in &app.client.messages {
-        chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
+        chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut app.highlight_cache));
     }
 
     // Calculate proper scroll offset if auto_scroll is enabled

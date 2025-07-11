@@ -8,7 +8,7 @@ use crate::handlers::{
     history::{navigate_history_up, navigate_history_down},
 };
 use crate::utils::text::{move_cursor_up, move_cursor_down};
-use crate::tui::format_message_for_tui;
+use crate::tui::format_message_for_tui_cached;
 use tokio::sync::mpsc;
 use anyhow::Result;
 
@@ -297,6 +297,8 @@ fn handle_load_dialog(app: &mut AppState, code: KeyCode) {
                                 app.status = format!("Conversation loaded from {}", filepath.display());
                                 app.auto_scroll = true;
                                 app.show_load_dialog = false;
+                                // Clear the highlight cache since we have new messages
+                                app.clear_highlight_cache();
                             }
                             Err(e) => app.status = format!("Load failed: {}", e),
                         }
@@ -469,7 +471,7 @@ fn handle_chat_scroll_down(app: &mut AppState, terminal_size: (u16, u16)) {
     // Calculate max scroll
     let mut chat_spans = Vec::new();
     for msg in &app.client.messages {
-        chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
+        chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut app.highlight_cache));
     }
     
     if !chat_spans.is_empty() {
@@ -547,7 +549,7 @@ fn handle_page_down(app: &mut AppState, terminal_size: (u16, u16)) {
     // Calculate max scroll based on content
     let mut chat_spans = Vec::new();
     for msg in &app.client.messages {
-        chat_spans.extend(format_message_for_tui(&msg.role, &msg.content));
+        chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut app.highlight_cache));
     }
     
     if !chat_spans.is_empty() {
