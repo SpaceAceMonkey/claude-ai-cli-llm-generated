@@ -9,6 +9,10 @@ mod input;
 mod navigation;
 mod shortcuts;
 
+// Test modules - kept separate from main code
+#[cfg(test)]
+mod tests;
+
 use dialogs::{handle_exit_dialog, handle_create_dir_dialog, handle_save_dialog, handle_load_dialog};
 use input::{handle_enter_key, handle_backspace, handle_delete, handle_char_input};
 use navigation::{handle_up_key, handle_down_key, handle_page_up, handle_page_down};
