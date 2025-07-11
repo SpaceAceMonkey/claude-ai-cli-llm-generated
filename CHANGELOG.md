@@ -7,6 +7,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-07-11
+
+### Added
+- **Comprehensive Test Suite**: Implemented extensive unit, integration, and property-based tests
+  - 75+ tests covering dialog handling, file operations, navigation, and error scenarios
+  - Property-based tests using QuickCheck for robustness validation
+  - Organized test modules in `src/handlers/events/tests/`
+  - Test coverage for save/load dialogs, exit confirmation, directory creation, and file operations
+- **Test Documentation**: All tests annotated with detailed comments explaining purpose and expected results
+- **Improved Dialog Layout**: 
+  - Exit dialog now dynamically sizes to content with 90% screen width limit
+  - Better text wrapping prevention and dialog centering
+  - Enhanced visual consistency across different terminal sizes
+
+### Improved
+- **Code Organization**: Better separation of dialog logic and UI rendering
+- **Error Handling**: More robust error scenarios covered by tests
+- **Performance**: Test suite validates performance characteristics under various load conditions
+- **Maintainability**: Comprehensive test documentation makes codebase more maintainable
+
+### Technical
+- **Dependencies**: Added `tempfile` and `quickcheck` as dev-dependencies for testing
+- **Test Infrastructure**: Modular test organization with helper functions and fixture management
+- **Validation**: All dialog interactions validated for state consistency and error handling
+
 ## [0.3.0] - 2025-07-08
 
 ### Added
