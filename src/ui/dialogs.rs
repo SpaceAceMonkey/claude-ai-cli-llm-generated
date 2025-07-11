@@ -128,10 +128,33 @@ fn draw_create_dir_dialog(f: &mut Frame, app: &AppState, size: Rect) {
 }
 
 fn draw_exit_dialog(f: &mut Frame, app: &AppState, size: Rect) {
+    // Calculate optimal dialog width based on content
+    let main_text = "Exit the program?";
+    let instruction_text = "Use ↑↓ or Y/N to select, Enter to confirm.";
+    let title_text = "Confirm Exit";
+    let options_text = "  [Yes]     [No]  ";
+    
+    // Find the longest line to determine minimum width needed
+    let text_lines = [main_text, instruction_text, title_text, options_text];
+    let max_content_width = text_lines.iter()
+        .map(|line| line.len())
+        .max()
+        .unwrap_or(0);
+    
+    // Add margins: 2 for borders + 4 for internal padding
+    let min_width = max_content_width + 6;
+    
+    // Limit to 90% of screen width but ensure it's at least the minimum needed
+    let max_allowed_width = (size.width * 90) / 100;
+    let dialog_width = std::cmp::min(max_allowed_width, std::cmp::max(min_width as u16, 30));
+    
+    // Center the dialog horizontally
+    let dialog_x = (size.width.saturating_sub(dialog_width)) / 2;
+    
     let dialog_area = Rect {
-        x: size.width / 3,
+        x: dialog_x,
         y: size.height / 2 - 3,
-        width: size.width / 3,
+        width: dialog_width,
         height: 6,
     };
     
