@@ -129,6 +129,9 @@ pub fn handle_save_dialog(app: &mut AppState, code: KeyCode) {
             if let Some(selected) = app.file_list_state.selected() {
                 if selected > 0 {
                     app.file_list_state.select(Some(selected - 1));
+                } else if !app.available_files.is_empty() {
+                    // Wrap to bottom
+                    app.file_list_state.select(Some(app.available_files.len() - 1));
                 }
             } else if !app.available_files.is_empty() {
                 app.file_list_state.select(Some(app.available_files.len() - 1));
@@ -138,6 +141,9 @@ pub fn handle_save_dialog(app: &mut AppState, code: KeyCode) {
             if let Some(selected) = app.file_list_state.selected() {
                 if selected < app.available_files.len().saturating_sub(1) {
                     app.file_list_state.select(Some(selected + 1));
+                } else if !app.available_files.is_empty() {
+                    // Wrap to top
+                    app.file_list_state.select(Some(0));
                 }
             } else if !app.available_files.is_empty() {
                 app.file_list_state.select(Some(0));
@@ -205,6 +211,9 @@ pub fn handle_load_dialog(app: &mut AppState, code: KeyCode) {
             if let Some(selected) = app.file_list_state.selected() {
                 if selected > 0 {
                     app.file_list_state.select(Some(selected - 1));
+                } else if !app.available_files.is_empty() {
+                    // Wrap to bottom
+                    app.file_list_state.select(Some(app.available_files.len() - 1));
                 }
             } else if !app.available_files.is_empty() {
                 app.file_list_state.select(Some(app.available_files.len() - 1));
@@ -214,6 +223,9 @@ pub fn handle_load_dialog(app: &mut AppState, code: KeyCode) {
             if let Some(selected) = app.file_list_state.selected() {
                 if selected < app.available_files.len().saturating_sub(1) {
                     app.file_list_state.select(Some(selected + 1));
+                } else if !app.available_files.is_empty() {
+                    // Wrap to top
+                    app.file_list_state.select(Some(0));
                 }
             } else if !app.available_files.is_empty() {
                 app.file_list_state.select(Some(0));
