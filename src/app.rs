@@ -1,6 +1,9 @@
 // src/app.rs
 use crate::client::ConversationClient;
 use rustyline::Editor;
+use ratatui::widgets::ListState;
+use std::path::PathBuf;
+use crate::handlers::file_ops::get_saves_directory;
 
 pub struct AppState {
     pub client: ConversationClient,
@@ -17,6 +20,21 @@ pub struct AppState {
     pub input_draft: Option<String>,
     pub simulate_mode: bool,
     pub rl: Editor<(), rustyline::history::DefaultHistory>,
+    
+    // Dialog state
+    pub show_error_dialog: bool,
+    pub error_message: String,
+    pub show_save_dialog: bool,
+    pub show_load_dialog: bool,
+    pub save_filename: String,
+    pub available_files: Vec<String>,
+    pub file_list_state: ListState,
+    pub dialog_cursor_pos: usize,
+    pub current_directory: PathBuf,
+    pub show_create_dir_dialog: bool,
+    pub new_dir_name: String,
+    pub show_exit_dialog: bool,
+    pub exit_selected: usize,
 }
 
 impl AppState {
@@ -42,6 +60,21 @@ impl AppState {
             input_draft: None,
             simulate_mode,
             rl: Editor::<(), rustyline::history::DefaultHistory>::new()?,
+            
+            // Dialog state
+            show_error_dialog: false,
+            error_message: String::new(),
+            show_save_dialog: false,
+            show_load_dialog: false,
+            save_filename: String::new(),
+            available_files: Vec::new(),
+            file_list_state: ListState::default(),
+            dialog_cursor_pos: 0,
+            current_directory: get_saves_directory(),
+            show_create_dir_dialog: false,
+            new_dir_name: String::new(),
+            show_exit_dialog: false,
+            exit_selected: 0,
         })
     }
 }

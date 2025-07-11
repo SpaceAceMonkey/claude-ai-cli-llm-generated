@@ -11,7 +11,7 @@ pub fn wrap_text(text: &str, width: usize) -> Vec<Line<'static>> {
     
     let text_lines: Vec<&str> = text.split('\n').collect();
     
-    for (i, line) in text_lines.iter().enumerate() {
+    for (_i, line) in text_lines.iter().enumerate() {
         if line.is_empty() {
             lines.push(Line::from(""));
         } else if line.len() <= width {

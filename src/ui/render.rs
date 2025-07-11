@@ -1,7 +1,6 @@
 // src/ui/render.rs
 use ratatui::{
     Frame,
-    backend::Backend,
     widgets::{Block, Borders, Paragraph, Wrap},
     layout::{Layout, Constraint, Direction, Rect},
     text::Text,
@@ -11,10 +10,11 @@ use crate::{
     config::*,
     tui::format_message_for_tui,
     utils::{text::*, scroll::*},
+    ui::dialogs::draw_dialogs,
 };
 
-pub fn draw_ui<B: Backend>(
-    f: &mut Frame<B>,
+pub fn draw_ui(
+    f: &mut Frame,
     app: &mut AppState,
     layout: &[Rect],
 ) {
@@ -26,10 +26,13 @@ pub fn draw_ui<B: Backend>(
     
     // Draw status area
     draw_status(f, app, layout[2]);
+    
+    // Draw dialogs (overlays)
+    draw_dialogs(f, app, f.size());
 }
 
-fn draw_chat<B: Backend>(
-    f: &mut Frame<B>,
+fn draw_chat(
+    f: &mut Frame,
     app: &mut AppState,
     area: Rect,
 ) {
@@ -58,8 +61,8 @@ fn draw_chat<B: Backend>(
     f.render_widget(chat, area);
 }
 
-fn draw_input<B: Backend>(
-    f: &mut Frame<B>,
+fn draw_input(
+    f: &mut Frame,
     app: &mut AppState,
     area: Rect,
 ) {
@@ -79,9 +82,9 @@ fn draw_input<B: Backend>(
     }
 
     let input_title = if SHIFT_ENTER_SENDS {
-        "Input (Shift/Alt+Enter to send)"
+        "Input (Shift/Alt+Enter to send, Enter for newline)"
     } else {
-        "Input (Ctrl+Enter to send, Shift/Alt+Enter for newline)"
+        "Input (Enter to send, Shift/Alt+Enter for newline)"
     };
     
     let input_bar = Paragraph::new(Text::from(input_lines))
@@ -103,8 +106,8 @@ fn draw_input<B: Backend>(
     );
 }
 
-fn draw_status<B: Backend>(
-    f: &mut Frame<B>,
+fn draw_status(
+    f: &mut Frame,
     app: &AppState,
     area: Rect,
 ) {
