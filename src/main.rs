@@ -8,6 +8,12 @@ mod utils;
 mod handlers;
 mod ui;
 
+// Test modules
+#[cfg(test)]
+mod config_utils_tests;
+#[cfg(test)]
+mod main_loop_tests;
+
 use anyhow::Result;
 use clap::Parser;
 use api::Message;

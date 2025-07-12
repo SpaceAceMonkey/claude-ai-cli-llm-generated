@@ -11,7 +11,15 @@ mod shortcuts;
 
 // Test modules - kept separate from main code
 #[cfg(test)]
-mod tests;
+mod dialog_tests;
+#[cfg(test)]
+mod input_tests;
+#[cfg(test)]
+mod navigation_tests;
+#[cfg(test)]
+mod shortcuts_tests;
+#[cfg(test)]
+mod integration_tests;
 
 use dialogs::{handle_exit_dialog, handle_create_dir_dialog, handle_save_dialog, handle_load_dialog};
 use input::{handle_enter_key, handle_backspace, handle_delete, handle_char_input};
