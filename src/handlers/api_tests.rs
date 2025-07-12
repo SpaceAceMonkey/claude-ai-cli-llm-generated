@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use crate::app::AppState;
 use crate::api::Message;
 use crate::handlers::api::send_message_to_api;
+use crate::config::get_default_colors;
 
 /// Helper function to create a test channel for async communication
 fn create_api_test_channel() -> (
@@ -41,6 +42,7 @@ fn create_api_test_app_state(simulate: bool) -> AppState {
         1024,
         0.7,
         simulate,
+        get_default_colors(),
     ).expect("Failed to create test app state")
 }
 

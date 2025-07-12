@@ -3,7 +3,7 @@
 
 use crate::app::AppState;
 use crate::api::{Message, HighlightCache};
-use crate::config::SHIFT_ENTER_SENDS;
+use crate::config::{SHIFT_ENTER_SENDS, get_default_colors, AnsiColor};
 use crate::utils::text::{wrap_text, calculate_cursor_line};
 use crate::utils::scroll::calculate_chat_scroll_offset;
 use crate::tui::format_message_for_tui_cached;
@@ -16,6 +16,7 @@ fn create_ui_test_app() -> AppState {
         1024,
         0.7,
         true,
+        get_default_colors(),
     ).expect("Failed to create test app state")
 }
 
@@ -179,15 +180,15 @@ mod text_rendering_tests {
         let mut cache = HighlightCache::new();
         
         // Test user message
-        let user_spans = format_message_for_tui_cached("user", "Hello, world!", &mut cache);
+        let user_spans = format_message_for_tui_cached("user", "Hello, world!", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         assert!(!user_spans.is_empty(), "User message should produce spans");
         
         // Test assistant message
-        let assistant_spans = format_message_for_tui_cached("assistant", "Hello back!", &mut cache);
+        let assistant_spans = format_message_for_tui_cached("assistant", "Hello back!", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         assert!(!assistant_spans.is_empty(), "Assistant message should produce spans");
         
         // Test caching
-        let cached_spans = format_message_for_tui_cached("user", "Hello, world!", &mut cache);
+        let cached_spans = format_message_for_tui_cached("user", "Hello, world!", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         assert_eq!(user_spans.len(), cached_spans.len(), "Cached results should match original");
     }
 
@@ -197,7 +198,7 @@ mod text_rendering_tests {
         let mut cache = HighlightCache::new();
         
         let content = "This has **bold** text and `code` snippets.";
-        let spans = format_message_for_tui_cached("assistant", content, &mut cache);
+        let spans = format_message_for_tui_cached("assistant", content, &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         
         assert!(!spans.is_empty(), "Markdown content should produce spans");
         
@@ -223,7 +224,7 @@ mod scroll_calculation_tests {
         // Convert to spans
         let mut chat_spans = Vec::new();
         for msg in &messages {
-            chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut cache));
+            chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen));
         }
         
         let chat_height = 10;
@@ -257,7 +258,7 @@ mod scroll_calculation_tests {
         };
         
         let mut chat_spans = Vec::new();
-        chat_spans.extend(format_message_for_tui_cached(&short_message.role, &short_message.content, &mut cache));
+        chat_spans.extend(format_message_for_tui_cached(&short_message.role, &short_message.content, &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen));
         
         let chat_height = 20; // Much larger than content
         let chat_width = 40;
@@ -283,7 +284,7 @@ mod scroll_calculation_tests {
         
         let mut chat_spans = Vec::new();
         for msg in &messages {
-            chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut cache));
+            chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen));
         }
         
         let chat_height = 5; // Much smaller than content
@@ -305,7 +306,7 @@ mod scroll_calculation_tests {
         };
         
         let mut chat_spans = Vec::new();
-        chat_spans.extend(format_message_for_tui_cached(&long_message.role, &long_message.content, &mut cache));
+        chat_spans.extend(format_message_for_tui_cached(&long_message.role, &long_message.content, &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen));
         
         let chat_height = 10;
         
@@ -652,7 +653,7 @@ mod visual_consistency_tests {
         for _ in 0..3 {
             let mut chat_spans = Vec::new();
             for msg in &app.client.messages {
-                chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut cache));
+                chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen));
             }
             
             assert!(!chat_spans.is_empty(), "Messages should render consistently");
@@ -716,7 +717,7 @@ mod visual_consistency_tests {
         
         // Render Unicode content multiple times
         for _ in 0..3 {
-            let chat_spans = format_message_for_tui_cached("user", unicode_content, &mut cache);
+            let chat_spans = format_message_for_tui_cached("user", unicode_content, &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
             assert!(!chat_spans.is_empty(), "Unicode content should render consistently");
             
             let rendered_text: String = chat_spans.iter().map(|line| line.to_string()).collect();

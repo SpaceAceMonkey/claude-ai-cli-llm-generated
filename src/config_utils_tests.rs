@@ -3,7 +3,7 @@
 
 use crate::app::AppState;
 use crate::api::HighlightCache;
-use crate::config::{SHIFT_ENTER_SENDS, SCROLL_ON_USER_INPUT, SCROLL_ON_API_RESPONSE};
+use crate::config::{SHIFT_ENTER_SENDS, SCROLL_ON_USER_INPUT, SCROLL_ON_API_RESPONSE, get_default_colors, AnsiColor};
 use crate::utils::text::{wrap_text, calculate_cursor_line, move_cursor_up, move_cursor_down};
 use crate::utils::scroll::calculate_chat_scroll_offset;
 use crate::tui::format_message_for_tui_cached;
@@ -21,6 +21,7 @@ mod configuration_tests {
             1024,
             0.7,
             true,
+            get_default_colors(),
         );
         
         assert!(app_result.is_ok(), "AppState creation should succeed with valid parameters");
@@ -50,6 +51,7 @@ mod configuration_tests {
                 1024,
                 0.7,
                 true,
+            get_default_colors(),
             );
             
             assert!(app_result.is_ok(), "AppState creation should succeed with model: {}", model);
@@ -71,6 +73,7 @@ mod configuration_tests {
                 max_tokens,
                 0.7,
                 true,
+            get_default_colors(),
             );
             
             assert!(app_result.is_ok(), "AppState creation should succeed with token limit: {}", max_tokens);
@@ -92,6 +95,7 @@ mod configuration_tests {
                 1024,
                 temperature,
                 true,
+            get_default_colors(),
             );
             
             assert!(app_result.is_ok(), "AppState creation should succeed with temperature: {}", temperature);
@@ -112,6 +116,7 @@ mod configuration_tests {
             1024,
             0.7,
             true,
+            get_default_colors(),
         ).unwrap();
         
         assert!(app_sim.simulate_mode, "Simulate mode should be enabled");
@@ -123,6 +128,7 @@ mod configuration_tests {
             1024,
             0.7,
             false,
+            get_default_colors(),
         ).unwrap();
         
         assert!(!app_real.simulate_mode, "Simulate mode should be disabled");
@@ -171,6 +177,7 @@ mod configuration_tests {
             1024,
             0.7,
             true,
+            get_default_colors(),
         );
         
         // Should succeed (validation happens at API call time)
@@ -191,6 +198,7 @@ mod configuration_tests {
             u32::MAX,
             0.7,
             true,
+            get_default_colors(),
         );
         assert!(app_high_tokens.is_ok(), "Should handle very high token limit");
         
@@ -201,6 +209,7 @@ mod configuration_tests {
             0,
             0.7,
             true,
+            get_default_colors(),
         );
         assert!(app_zero_tokens.is_ok(), "Should handle zero token limit");
         
@@ -211,6 +220,7 @@ mod configuration_tests {
             1024,
             0.0,
             true,
+            get_default_colors(),
         );
         assert!(app_temp_min.is_ok(), "Should handle minimum temperature");
         
@@ -220,6 +230,7 @@ mod configuration_tests {
             1024,
             1.0,
             true,
+            get_default_colors(),
         );
         assert!(app_temp_max.is_ok(), "Should handle maximum temperature");
     }
@@ -357,7 +368,7 @@ mod utility_function_tests {
         // Create test spans
         let mut spans = Vec::new();
         for i in 0..10 {
-            spans.extend(format_message_for_tui_cached("user", &format!("Message {}", i), &mut cache));
+            spans.extend(format_message_for_tui_cached("user", &format!("Message {}", i), &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen));
         }
         
         let chat_height = 5;
@@ -378,7 +389,7 @@ mod utility_function_tests {
         
         // Very small chat height
         let mut cache = HighlightCache::new();
-        let spans = format_message_for_tui_cached("user", "Test message", &mut cache);
+        let spans = format_message_for_tui_cached("user", "Test message", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         let offset = calculate_chat_scroll_offset(&spans, 1, 40);
         assert!(offset >= 0, "Small chat height should be handled");
         
@@ -393,15 +404,15 @@ mod utility_function_tests {
         let mut cache = HighlightCache::new();
         
         // First call should populate cache
-        let spans1 = format_message_for_tui_cached("user", "Test message", &mut cache);
+        let spans1 = format_message_for_tui_cached("user", "Test message", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         assert!(!spans1.is_empty(), "Should format message");
         
         // Second call should use cache
-        let spans2 = format_message_for_tui_cached("user", "Test message", &mut cache);
+        let spans2 = format_message_for_tui_cached("user", "Test message", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         assert_eq!(spans1.len(), spans2.len(), "Cached result should match original");
         
         // Different message should not use cache
-        let spans3 = format_message_for_tui_cached("user", "Different message", &mut cache);
+        let spans3 = format_message_for_tui_cached("user", "Different message", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         assert!(!spans3.is_empty(), "Should format different message");
     }
 
@@ -410,9 +421,9 @@ mod utility_function_tests {
         // Test message formatting for different roles
         let mut cache = HighlightCache::new();
         
-        let user_spans = format_message_for_tui_cached("user", "User message", &mut cache);
-        let assistant_spans = format_message_for_tui_cached("assistant", "Assistant message", &mut cache);
-        let system_spans = format_message_for_tui_cached("system", "System message", &mut cache);
+        let user_spans = format_message_for_tui_cached("user", "User message", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
+        let assistant_spans = format_message_for_tui_cached("assistant", "Assistant message", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
+        let system_spans = format_message_for_tui_cached("system", "System message", &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         
         assert!(!user_spans.is_empty(), "User message should format");
         assert!(!assistant_spans.is_empty(), "Assistant message should format");
@@ -425,7 +436,7 @@ mod utility_function_tests {
         let mut cache = HighlightCache::new();
         
         let special_content = "Message with **bold**, `code`, and unicode: 🦀 世界";
-        let spans = format_message_for_tui_cached("user", special_content, &mut cache);
+        let spans = format_message_for_tui_cached("user", special_content, &mut cache, AnsiColor::BrightBlue, AnsiColor::BrightGreen);
         
         assert!(!spans.is_empty(), "Should format message with special characters");
         
@@ -495,6 +506,7 @@ mod integration_configuration_tests {
             1024,
             0.7,
             true,
+            get_default_colors(),
         ).unwrap();
         
         // Test input handling
@@ -517,6 +529,7 @@ mod integration_configuration_tests {
             1024,
             0.7,
             true,
+            get_default_colors(),
         ).unwrap();
         
         // Test that feature flags are consistent
@@ -546,6 +559,7 @@ mod integration_configuration_tests {
             1024,
             0.7,
             true,
+            get_default_colors(),
         ).unwrap();
         
         // Default state should be empty
@@ -580,6 +594,7 @@ mod integration_configuration_tests {
             1,
             0.0,
             true,
+            get_default_colors(),
         );
         assert!(app_min.is_ok(), "Should handle minimum parameters");
         
@@ -590,6 +605,7 @@ mod integration_configuration_tests {
             100000,
             1.0,
             false,
+            get_default_colors(),
         );
         assert!(app_max.is_ok(), "Should handle maximum parameters");
     }
@@ -603,6 +619,7 @@ mod integration_configuration_tests {
             1024,
             0.7,
             true,
+            get_default_colors(),
         ).unwrap();
         
         // Test dialog state transitions
