@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2025-07-11
+## [Unreleased]
 
 ### Added
 - **Comprehensive Test Suite**: Implemented extensive unit, integration, and property-based tests
@@ -20,17 +20,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Exit dialog now dynamically sizes to content with 90% screen width limit
   - Better text wrapping prevention and dialog centering
   - Enhanced visual consistency across different terminal sizes
+- **Color Configuration Error Handling**: Show error dialog when config file is corrupt or unreadable on startup
+- **Color Preferences Persistence**: Automatically save color preferences on application exit
+- **Enhanced Documentation**: Consolidated color configuration examples and usage patterns into main README.md
+- **Organized Documentation Structure**: Created `docs/` directory with `development/` subdirectory for technical implementation details
+
+### Fixed
+- **Command-Line Color Override Bug**: Fixed critical bug where specifying default color values via command line (e.g., `--background-color black`) would not override saved config file values
+- **Test Suite Compatibility**: Updated all test files to work with new ColorConfig parameter requirements
+- **Breaking Change Resolution**: Systematically fixed 44+ test compilation errors after ColorConfig API changes
+
+### Changed
+- **Color Configuration Architecture**: Refactored color argument parsing to use `Option<String>` instead of default values, enabling proper distinction between "not provided" vs "explicitly provided" arguments
+- **Documentation Organization**: Removed redundant markdown files (`COLOR_USAGE.md`, `HOTKEY_UPDATE.md`, `DIALOG_INSTRUCTIONS_FIX.md`) and consolidated essential information into main README.md
+- **Project Structure**: Moved development-specific documentation to `docs/development/` directory for better organization
 
 ### Improved
 - **Code Organization**: Better separation of dialog logic and UI rendering
 - **Error Handling**: More robust error scenarios covered by tests
 - **Performance**: Test suite validates performance characteristics under various load conditions
 - **Maintainability**: Comprehensive test documentation makes codebase more maintainable
+- **Type Safety**: Enhanced command-line argument parsing with proper Option handling
 
 ### Technical
 - **Dependencies**: Added `tempfile` and `quickcheck` as dev-dependencies for testing
 - **Test Infrastructure**: Modular test organization with helper functions and fixture management
 - **Validation**: All dialog interactions validated for state consistency and error handling
+- **Error Reporting**: Added comprehensive error reporting for color configuration loading
+- **Test Coverage**: All 212 tests passing after systematic fixes to accommodate ColorConfig changes
+- **Code Quality**: Improved separation of concerns between configuration loading and error handling
+
+### Removed
+- **Redundant Documentation**: Eliminated duplicate markdown files that contained information already present in README.md
+- **Broken Reference**: Removed reference to non-existent COLOR_USAGE.md file from README.md
 
 ## [0.3.0] - 2025-07-08
 

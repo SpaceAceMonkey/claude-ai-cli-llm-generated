@@ -110,6 +110,8 @@ The application features a **three-panel layout**:
 - **Token Tracking** - Real-time display of input/output/total token usage
 - **Conversation Persistence** - Save and load conversations to/from JSON files
 - **Full Context** - Maintains complete conversation history for API calls
+- **Color Configuration** - Persistent, customizable color themes with error handling
+- **Configuration Management** - Automatic config file creation and error recovery
 
 ### Advanced Features
 - **Smart Scrolling** - Auto-scroll to latest messages with manual override
@@ -117,6 +119,7 @@ The application features a **three-panel layout**:
 - **Performance Optimizations** - Intelligent caching for syntax highlighting
 - **Multi-line Input** - Full cursor positioning with word wrapping
 - **Command History** - Navigate through previous inputs with Up/Down arrows
+- **Robust Error Handling** - Graceful handling of configuration errors and API failures
 
 ### Additional Keyboard Shortcuts
 
@@ -146,6 +149,12 @@ The application behavior can be customized through compile-time flags:
 ## Color Configuration
 
 The application supports user-configurable colors for a personalized TUI experience. Colors can be set via command line arguments or changed interactively during runtime.
+
+### Features
+- **Persistent Color Settings**: Colors are automatically saved to `~/.config/claudecli/config.json` and restored on next launch
+- **Command-Line Override**: Any color specified via command line will override saved settings
+- **Error Handling**: Invalid or corrupted color configuration files are handled gracefully with clear error messages
+- **Interactive Configuration**: Real-time color changes through the built-in color picker dialog
 
 ### Command Line Color Options
 
@@ -181,7 +190,54 @@ Press **Alt+Shift+C** while the application is running to open the color configu
 - **Enter** - Apply selected colors
 - **Escape** - Cancel and return to main interface
 
-For detailed color configuration examples and usage patterns, see [COLOR_USAGE.md](COLOR_USAGE.md).
+### Color Theme Examples
+
+**Professional Theme (default):**
+```bash
+claudecli --api-key <API_KEY> \
+  --background-color black \
+  --border-color white \
+  --text-color white \
+  --user-name-color bright-blue \
+  --assistant-name-color bright-green
+```
+
+**Dark Theme:**
+```bash
+claudecli --api-key <API_KEY> \
+  --background-color bright-black \
+  --border-color bright-white \
+  --text-color bright-white \
+  --user-name-color bright-cyan \
+  --assistant-name-color bright-magenta
+```
+
+**Light Theme:**
+```bash
+claudecli --api-key <API_KEY> \
+  --background-color white \
+  --border-color black \
+  --text-color black \
+  --user-name-color blue \
+  --assistant-name-color green
+```
+
+> **Note**: Color changes made through the interactive dialog are applied immediately to the current session and are automatically saved to `~/.config/claudecli/config.json` for persistence across sessions.
+
+### Troubleshooting Colors
+
+**Command-Line Colors Not Working:**
+- Command-line color arguments always override saved settings, even when specifying default values
+- Example: `--background-color black` will work correctly even if that's the default value
+
+**Configuration File Errors:**
+- If your color configuration file becomes corrupted, the application will display an error dialog and fall back to default colors
+- You can reset colors by deleting `~/.config/claudecli/config.json` or using the `--reset-colors` flag
+
+**Terminal Compatibility:**
+- Color display depends on your terminal's ANSI color support
+- Most modern terminals support all 16 colors; some older terminals may have limited support
+- VSCode's integrated terminal may automatically adjust colors for readability (e.g., preventing same-color text/background combinations)
 
 ## About This Project
 
@@ -239,6 +295,12 @@ For those interested in the technical challenges and AI development process:
 **Scroll Calculation**: Complex interaction between logical lines and visual lines required calculating visual lines after text wrapping for proper display.
 
 **Async Communication**: Implemented proper channel (mpsc) between spawned tasks and main loop to ensure UI updates correctly with async responses.
+
+**Color Configuration Architecture**: Resolved critical command-line parsing bug where arguments matching default values (e.g., `--background-color black`) failed to override saved settings. Fixed by refactoring from default-value strings to `Option<String>` types, enabling proper distinction between "not provided" vs "explicitly provided" arguments.
+
+**Breaking Changes Management**: Successfully updated 212 test files after ColorConfig API changes, demonstrating the complexity of maintaining large codebases during refactoring. Required systematic fixes across 44+ test compilation errors.
+
+**Documentation Organization**: Consolidated redundant documentation files (COLOR_USAGE.md, HOTKEY_UPDATE.md, DIALOG_INSTRUCTIONS_FIX.md) into main README.md while preserving technical details in organized `docs/development/` structure.
 
 ### AI Model Development History
 
