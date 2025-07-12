@@ -37,12 +37,15 @@ export BORDER_COLOR=bright-white
 ## Interactive Color Selection
 
 ### Opening the Color Dialog
-While the application is running, you can press `Ctrl+C` to open the color configuration dialog.
+While the application is running, you can:
+- Press `Alt+Shift+C` to open the color configuration dialog
+- Type `/colors` and press Enter to open the dialog
+- Type `/colors` and press Space to open the dialog
 
 ### Using the Color Dialog
-1. **Navigation**: Use `Up` and `Down` arrow keys to navigate between color options
-2. **Selection**: Use `Left` and `Right` arrow keys to cycle through available colors
-3. **Save**: Press `Enter` to apply the selected colors
+1. **Navigation**: Use `Left` and `Right` arrow keys to navigate between color type options (Background, Border, Text, etc.)
+2. **Selection**: Use `Up` and `Down` arrow keys to navigate between available colors for the selected type
+3. **Apply**: Press `Enter` to apply the selected colors
 4. **Cancel**: Press `Esc` to cancel changes and return to the main interface
 
 ### Color Options in Dialog

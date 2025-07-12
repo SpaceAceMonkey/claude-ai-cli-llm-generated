@@ -26,6 +26,9 @@ use input::{handle_enter_key, handle_backspace, handle_delete, handle_char_input
 use navigation::{handle_up_key, handle_down_key, handle_page_up, handle_page_down};
 use shortcuts::handle_keyboard_shortcuts;
 
+// Re-export dialog scroll functions for use in UI module
+pub use dialogs::{update_color_dialog_scroll_with_height, update_color_dialog_selection_scroll_with_height};
+
 pub async fn handle_key_event(
     app: &mut AppState,
     key_event: KeyEvent,

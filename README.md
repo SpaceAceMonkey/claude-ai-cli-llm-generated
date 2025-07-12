@@ -67,9 +67,13 @@ claudecli --api-key <API_KEY> [OPTIONS]
 - **Ctrl+Q** - Exit with confirmation
 - **Escape** - Cancel dialogs
 
+#### Color Configuration
+- **Alt+Shift+C** - Open color configuration dialog
+
 ### Commands
 - **/save** - Open save dialog
 - **/load** - Open load dialog
+- **/colors** - Open color configuration dialog
 
 ### Interface Overview
 
@@ -171,9 +175,9 @@ claudecli --api-key <API_KEY> \
 
 ### Interactive Color Selection
 
-Press **Ctrl+C** while the application is running to open the color configuration dialog:
-- **Up/Down** - Navigate between color options
-- **Left/Right** - Cycle through available colors
+Press **Alt+Shift+C** while the application is running to open the color configuration dialog, or use the `/colors` command:
+- **Left/Right** - Navigate between color type options
+- **Up/Down** - Navigate between color choices
 - **Enter** - Apply selected colors
 - **Escape** - Cancel and return to main interface
 

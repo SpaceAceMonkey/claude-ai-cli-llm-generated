@@ -99,8 +99,14 @@ pub fn handle_keyboard_shortcuts(
             app.exit_selected = 0;
             true
         }
-        // Color configuration shortcut
-        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
+        // Color configuration shortcut - Alt+Shift+C
+        KeyCode::Char('c') if modifiers.contains(KeyModifiers::ALT) && modifiers.contains(KeyModifiers::SHIFT) => {
+            app.show_color_dialog = true;
+            app.color_dialog_selection = 0;
+            app.color_dialog_option = 0;
+            true
+        }
+        KeyCode::Char('C') if modifiers.contains(KeyModifiers::ALT) && modifiers.contains(KeyModifiers::SHIFT) => {
             app.show_color_dialog = true;
             app.color_dialog_selection = 0;
             app.color_dialog_option = 0;

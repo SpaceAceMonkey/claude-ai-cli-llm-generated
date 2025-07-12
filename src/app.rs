@@ -46,6 +46,8 @@ pub struct AppState {
     pub show_color_dialog: bool,
     pub color_dialog_selection: usize,
     pub color_dialog_option: usize,
+    pub color_dialog_scroll_offset: usize,
+    pub color_dialog_selection_scroll_offset: usize,
 }
 
 impl AppState {
@@ -96,6 +98,8 @@ impl AppState {
             show_color_dialog: false,
             color_dialog_selection: 0,
             color_dialog_option: 0,
+            color_dialog_scroll_offset: 0,
+            color_dialog_selection_scroll_offset: 0,
         })
     }
     

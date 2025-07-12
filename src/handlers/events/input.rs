@@ -31,6 +31,12 @@ pub async fn handle_enter_key(
         app.file_list_state.select(Some(0));
         app.input.clear();
         app.cursor_position = 0;
+    } else if app.input == "/colors" || app.input == "/color" {
+        app.show_color_dialog = true;
+        app.color_dialog_selection = 0;
+        app.color_dialog_option = 0;
+        app.input.clear();
+        app.cursor_position = 0;
     } else if modifiers.contains(KeyModifiers::SHIFT) || modifiers.contains(KeyModifiers::ALT) {
         if SHIFT_ENTER_SENDS && !app.input.is_empty() {
             send_message(app, tx).await?;
@@ -155,6 +161,12 @@ pub fn handle_char_input(app: &mut AppState, c: char) {
         app.current_directory = get_saves_directory();
         load_directory_contents(&mut app.available_files, &app.current_directory, false);
         app.file_list_state.select(Some(0));
+        app.input.clear();
+        app.cursor_position = 0;
+    } else if (app.input == "/colors" || app.input == "/color") && c == ' ' {
+        app.show_color_dialog = true;
+        app.color_dialog_selection = 0;
+        app.color_dialog_option = 0;
         app.input.clear();
         app.cursor_position = 0;
     } else {

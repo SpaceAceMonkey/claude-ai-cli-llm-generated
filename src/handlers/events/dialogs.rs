@@ -259,6 +259,8 @@ pub fn handle_color_dialog(app: &mut AppState, code: KeyCode) {
             app.show_color_dialog = false;
             app.color_dialog_selection = 0;
             app.color_dialog_option = 0;
+            app.color_dialog_scroll_offset = 0;
+            app.color_dialog_selection_scroll_offset = 0;
         }
         KeyCode::Up => {
             if app.color_dialog_option > 0 {
@@ -266,6 +268,8 @@ pub fn handle_color_dialog(app: &mut AppState, code: KeyCode) {
             } else {
                 app.color_dialog_option = available_colors.len() - 1;
             }
+            // Update scroll offset to keep selection visible
+            update_color_dialog_scroll(app, &available_colors);
         }
         KeyCode::Down => {
             if app.color_dialog_option < available_colors.len() - 1 {
@@ -273,6 +277,8 @@ pub fn handle_color_dialog(app: &mut AppState, code: KeyCode) {
             } else {
                 app.color_dialog_option = 0;
             }
+            // Update scroll offset to keep selection visible
+            update_color_dialog_scroll(app, &available_colors);
         }
         KeyCode::Left => {
             if app.color_dialog_selection > 0 {
@@ -280,6 +286,8 @@ pub fn handle_color_dialog(app: &mut AppState, code: KeyCode) {
             } else {
                 app.color_dialog_selection = color_options_count - 1;
             }
+            // Update scroll offset for left pane to keep selection visible
+            update_color_dialog_selection_scroll(app, color_options_count);
         }
         KeyCode::Right => {
             if app.color_dialog_selection < color_options_count - 1 {
@@ -287,7 +295,101 @@ pub fn handle_color_dialog(app: &mut AppState, code: KeyCode) {
             } else {
                 app.color_dialog_selection = 0;
             }
+            // Update scroll offset for left pane to keep selection visible
+            update_color_dialog_selection_scroll(app, color_options_count);
         }
         _ => {}
+    }
+}
+
+fn update_color_dialog_scroll(app: &mut AppState, available_colors: &[crate::config::AnsiColor]) {
+    // This will be updated during rendering with the actual available height
+    // For now, use a conservative minimum to prevent out-of-bounds access
+    let visible_height = 1; // Will be updated by the render function
+    
+    let current_selection = app.color_dialog_option;
+    let scroll_offset = &mut app.color_dialog_scroll_offset;
+    
+    // If selection is above the visible area, scroll up
+    if current_selection < *scroll_offset {
+        *scroll_offset = current_selection;
+    }
+    // If selection is below the visible area, scroll down
+    else if current_selection >= *scroll_offset + visible_height {
+        *scroll_offset = current_selection.saturating_sub(visible_height - 1);
+    }
+    
+    // Ensure scroll offset doesn't go beyond the available range
+    let max_scroll = available_colors.len().saturating_sub(visible_height);
+    if *scroll_offset > max_scroll {
+        *scroll_offset = max_scroll;
+    }
+}
+
+fn update_color_dialog_selection_scroll(app: &mut AppState, total_options: usize) {
+    // This will be updated during rendering with the actual available height
+    // For now, use a conservative minimum to prevent out-of-bounds access
+    let visible_height = 1; // Will be updated by the render function
+    
+    let current_selection = app.color_dialog_selection;
+    let scroll_offset = &mut app.color_dialog_selection_scroll_offset;
+    
+    // If selection is above the visible area, scroll up
+    if current_selection < *scroll_offset {
+        *scroll_offset = current_selection;
+    }
+    // If selection is below the visible area, scroll down
+    else if current_selection >= *scroll_offset + visible_height {
+        *scroll_offset = current_selection.saturating_sub(visible_height - 1);
+    }
+    
+    // Ensure scroll offset doesn't go beyond the available range
+    let max_scroll = total_options.saturating_sub(visible_height);
+    if *scroll_offset > max_scroll {
+        *scroll_offset = max_scroll;
+    }
+}
+
+pub fn update_color_dialog_scroll_with_height(app: &mut AppState, available_colors: &[crate::config::AnsiColor], visible_height: usize) {
+    let visible_height = std::cmp::max(1, visible_height); // Ensure at least 1 item is visible
+    
+    let current_selection = app.color_dialog_option;
+    let scroll_offset = &mut app.color_dialog_scroll_offset;
+    
+    // If selection is above the visible area, scroll up
+    if current_selection < *scroll_offset {
+        *scroll_offset = current_selection;
+    }
+    // If selection is below the visible area, scroll down
+    else if current_selection >= *scroll_offset + visible_height {
+        *scroll_offset = current_selection.saturating_sub(visible_height - 1);
+    }
+    
+    // Ensure scroll offset doesn't go beyond the available range
+    let max_scroll = available_colors.len().saturating_sub(visible_height);
+    if *scroll_offset > max_scroll {
+        *scroll_offset = max_scroll;
+    }
+}
+
+pub fn update_color_dialog_selection_scroll_with_height(app: &mut AppState, total_options: usize, visible_height: usize) {
+    let visible_height = std::cmp::max(1, visible_height); // Ensure at least 1 item is visible
+    
+    let current_selection = app.color_dialog_selection;
+    let scroll_offset = &mut app.color_dialog_selection_scroll_offset;
+    
+    // If selection is above the visible area, scroll up
+    if current_selection < *scroll_offset {
+        *scroll_offset = current_selection;
+    }
+    // If selection is below the visible area, scroll down
+    else if current_selection >= *scroll_offset + visible_height {
+        *scroll_offset = current_selection.saturating_sub(visible_height - 1);
+    }
+    
+    // Ensure scroll offset doesn't go beyond the available range
+    let max_scroll = total_options.saturating_sub(visible_height);
+    if *scroll_offset > max_scroll {
+        *scroll_offset = max_scroll;
     }
 }
