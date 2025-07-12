@@ -107,4 +107,15 @@ impl AppState {
     pub fn clear_highlight_cache(&mut self) {
         self.highlight_cache.clear();
     }
+    
+    /// Show error dialog for config loading issues
+    pub fn show_config_error(&mut self, error_msg: String) {
+        self.show_error_dialog = true;
+        self.error_message = error_msg;
+    }
+    
+    /// Save current color configuration to disk
+    pub fn save_color_config(&self) -> anyhow::Result<()> {
+        crate::config::save_color_config(&self.colors)
+    }
 }

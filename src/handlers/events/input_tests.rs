@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use tempfile::TempDir;
 
 use crate::app::AppState;
+use crate::config::get_default_colors;
 use crate::handlers::events::input::*;
 use crate::api::Message;
 
@@ -18,6 +19,7 @@ fn create_test_app_state() -> (AppState, TempDir) {
         1000,
         0.7,
         false,
+        get_default_colors(),
     ).expect("Failed to create AppState");
     
     app.current_directory = temp_dir.path().to_path_buf();

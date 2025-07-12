@@ -2,6 +2,7 @@
 use clap::Parser;
 use ratatui::style::Color;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// Feature flags and configuration constants
 pub const SCROLL_ON_USER_INPUT: bool = true;
@@ -156,19 +157,116 @@ impl Default for ColorConfig {
 
 impl ColorConfig {
     pub fn from_args(args: &Args) -> anyhow::Result<Self> {
-        Ok(Self {
-            background: AnsiColor::from_str(&args.background_color)?,
-            border: AnsiColor::from_str(&args.border_color)?,
-            text: AnsiColor::from_str(&args.text_color)?,
-            user_name: AnsiColor::from_str(&args.user_name_color)?,
-            assistant_name: AnsiColor::from_str(&args.assistant_name_color)?,
-        })
+        let (result, _) = Self::from_args_and_saved(args);
+        result
+    }
+
+    /// Create color configuration from args and saved config
+    pub fn from_args_and_saved(args: &Args) -> (anyhow::Result<Self>, Option<String>) {
+        // Start with saved config or defaults
+        let (mut config, config_error) = if args.reset_colors {
+            (ColorConfig::default(), None)
+        } else {
+            load_color_config_with_error_info()
+        };
+
+        // Apply command-line overrides if specified
+        let mut result = Ok(());
+        if args.background_color != "black" || args.reset_colors {
+            if let Err(e) = AnsiColor::from_str(&args.background_color) {
+                result = Err(e);
+            } else {
+                config.background = AnsiColor::from_str(&args.background_color).unwrap();
+            }
+        }
+        if args.border_color != "white" || args.reset_colors {
+            if let Err(e) = AnsiColor::from_str(&args.border_color) {
+                result = Err(e);
+            } else {
+                config.border = AnsiColor::from_str(&args.border_color).unwrap();
+            }
+        }
+        if args.text_color != "white" || args.reset_colors {
+            if let Err(e) = AnsiColor::from_str(&args.text_color) {
+                result = Err(e);
+            } else {
+                config.text = AnsiColor::from_str(&args.text_color).unwrap();
+            }
+        }
+        if args.user_name_color != "bright-blue" || args.reset_colors {
+            if let Err(e) = AnsiColor::from_str(&args.user_name_color) {
+                result = Err(e);
+            } else {
+                config.user_name = AnsiColor::from_str(&args.user_name_color).unwrap();
+            }
+        }
+        if args.assistant_name_color != "bright-green" || args.reset_colors {
+            if let Err(e) = AnsiColor::from_str(&args.assistant_name_color) {
+                result = Err(e);
+            } else {
+                config.assistant_name = AnsiColor::from_str(&args.assistant_name_color).unwrap();
+            }
+        }
+
+        (result.map(|_| config), config_error)
+    }
+
+    /// Reset all colors to defaults
+    pub fn reset_to_defaults(&mut self) {
+        *self = ColorConfig::default();
+    }
+}
+
+/// Get the path to the configuration file
+pub fn get_config_path() -> PathBuf {
+    let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+    path.push("claudecli");
+    std::fs::create_dir_all(&path).ok(); // Create directory if it doesn't exist
+    path.push("config.json");
+    path
+}
+
+/// Save color configuration to file
+pub fn save_color_config(config: &ColorConfig) -> anyhow::Result<()> {
+    let config_path = get_config_path();
+    let json = serde_json::to_string_pretty(config)?;
+    std::fs::write(&config_path, json)?;
+    Ok(())
+}
+
+/// Load color configuration from file
+pub fn load_color_config() -> anyhow::Result<ColorConfig> {
+    let config_path = get_config_path();
+    if !config_path.exists() {
+        return Ok(ColorConfig::default());
+    }
+
+    let contents = std::fs::read_to_string(&config_path)?;
+    let config: ColorConfig = serde_json::from_str(&contents)?;
+    Ok(config)
+}
+
+/// Load color configuration, falling back to defaults on error
+pub fn load_color_config_safe() -> ColorConfig {
+    load_color_config().unwrap_or_else(|_| ColorConfig::default())
+}
+
+/// Load color configuration, returning the result and whether it had an error
+pub fn load_color_config_with_error_info() -> (ColorConfig, Option<String>) {
+    match load_color_config() {
+        Ok(config) => (config, None),
+        Err(e) => (ColorConfig::default(), Some(format!("Failed to load color config: {}", e))),
     }
 }
 
 // Helper function for tests
 #[cfg(test)]
 pub fn default_test_colors() -> ColorConfig {
+    ColorConfig::default()
+}
+
+/// Get the default color configuration for testing
+pub fn get_default_colors() -> ColorConfig {
     ColorConfig::default()
 }
 
@@ -195,6 +293,10 @@ pub struct Args {
     /// Simulate API calls without actually sending requests
     #[arg(long)]
     pub simulate: bool,
+
+    /// Reset all colors to default values
+    #[arg(long)]
+    pub reset_colors: bool,
 
     /// Background color (default: black)
     #[arg(long, default_value = "black")]

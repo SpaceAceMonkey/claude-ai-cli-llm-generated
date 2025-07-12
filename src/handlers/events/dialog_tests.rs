@@ -9,6 +9,7 @@ use std::fs;
 use crate::app::AppState;
 use crate::handlers::events::dialogs::*;
 use crate::handlers::file_ops::load_directory_contents;
+use crate::config::get_default_colors;
 
 /// Helper function to create a test AppState with temporary directory
 fn create_test_app_state() -> (AppState, TempDir) {
@@ -19,6 +20,7 @@ fn create_test_app_state() -> (AppState, TempDir) {
         1000,
         0.7,
         false,
+        get_default_colors(),
     ).expect("Failed to create AppState");
     
     app.current_directory = temp_dir.path().to_path_buf();
