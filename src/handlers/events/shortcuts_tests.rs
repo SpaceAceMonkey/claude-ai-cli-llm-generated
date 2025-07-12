@@ -6,6 +6,7 @@ use tempfile::TempDir;
 
 use crate::app::AppState;
 use crate::handlers::events::shortcuts::*;
+use crate::config::get_default_colors;
 
 /// Helper function to create a test AppState with minimal setup
 fn create_test_app_state() -> (AppState, TempDir) {
@@ -16,6 +17,7 @@ fn create_test_app_state() -> (AppState, TempDir) {
         1000,
         0.7,
         true, // simulate_mode
+        get_default_colors(),
     ).expect("Failed to create app state");
     
     // Add some test messages to enable scrolling
