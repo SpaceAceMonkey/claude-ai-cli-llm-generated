@@ -99,6 +99,13 @@ pub fn handle_keyboard_shortcuts(
             app.exit_selected = 0;
             true
         }
+        // Color configuration shortcut
+        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
+            app.show_color_dialog = true;
+            app.color_dialog_selection = 0;
+            app.color_dialog_option = 0;
+            true
+        }
         _ => false
     }
 }

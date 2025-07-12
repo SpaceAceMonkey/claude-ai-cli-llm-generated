@@ -21,7 +21,7 @@ mod shortcuts_tests;
 #[cfg(test)]
 mod integration_tests;
 
-use dialogs::{handle_exit_dialog, handle_create_dir_dialog, handle_save_dialog, handle_load_dialog};
+use dialogs::{handle_exit_dialog, handle_create_dir_dialog, handle_save_dialog, handle_load_dialog, handle_color_dialog};
 use input::{handle_enter_key, handle_backspace, handle_delete, handle_char_input};
 use navigation::{handle_up_key, handle_down_key, handle_page_up, handle_page_down};
 use shortcuts::handle_keyboard_shortcuts;
@@ -59,6 +59,10 @@ pub async fn handle_key_event(
         // Handle load dialog
         _ if app.show_load_dialog => {
             handle_load_dialog(app, code);
+        }
+        // Handle color dialog
+        _ if app.show_color_dialog => {
+            handle_color_dialog(app, code);
         }
         // Handle main interface - Escape shows exit dialog ONLY when no other dialogs are open
         KeyCode::Esc => {

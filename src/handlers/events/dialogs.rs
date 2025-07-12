@@ -234,3 +234,60 @@ pub fn handle_load_dialog(app: &mut AppState, code: KeyCode) {
         _ => {}
     }
 }
+
+pub fn handle_color_dialog(app: &mut AppState, code: KeyCode) {
+    use crate::config::AnsiColor;
+    
+    let color_options_count = 5; // background, border, text, user_name, assistant_name
+    let available_colors = AnsiColor::all();
+    
+    match code {
+        KeyCode::Enter => {
+            // Apply the selected color to the selected option
+            let selected_color = available_colors[app.color_dialog_option];
+            match app.color_dialog_selection {
+                0 => app.colors.background = selected_color,
+                1 => app.colors.border = selected_color,
+                2 => app.colors.text = selected_color,
+                3 => app.colors.user_name = selected_color,
+                4 => app.colors.assistant_name = selected_color,
+                _ => {}
+            }
+        }
+        KeyCode::Esc => {
+            // Close the dialog
+            app.show_color_dialog = false;
+            app.color_dialog_selection = 0;
+            app.color_dialog_option = 0;
+        }
+        KeyCode::Up => {
+            if app.color_dialog_option > 0 {
+                app.color_dialog_option -= 1;
+            } else {
+                app.color_dialog_option = available_colors.len() - 1;
+            }
+        }
+        KeyCode::Down => {
+            if app.color_dialog_option < available_colors.len() - 1 {
+                app.color_dialog_option += 1;
+            } else {
+                app.color_dialog_option = 0;
+            }
+        }
+        KeyCode::Left => {
+            if app.color_dialog_selection > 0 {
+                app.color_dialog_selection -= 1;
+            } else {
+                app.color_dialog_selection = color_options_count - 1;
+            }
+        }
+        KeyCode::Right => {
+            if app.color_dialog_selection < color_options_count - 1 {
+                app.color_dialog_selection += 1;
+            } else {
+                app.color_dialog_selection = 0;
+            }
+        }
+        _ => {}
+    }
+}

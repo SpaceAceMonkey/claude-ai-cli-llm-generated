@@ -17,7 +17,7 @@ pub fn handle_chat_scroll_down(app: &mut AppState, terminal_size: (u16, u16)) {
     // Calculate max scroll
     let mut chat_spans = Vec::new();
     for msg in &app.client.messages {
-        chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut app.highlight_cache));
+        chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut app.highlight_cache, app.colors.user_name, app.colors.assistant_name));
     }
     
     if !chat_spans.is_empty() {
@@ -95,7 +95,7 @@ pub fn handle_page_down(app: &mut AppState, terminal_size: (u16, u16)) {
     // Calculate max scroll based on content
     let mut chat_spans = Vec::new();
     for msg in &app.client.messages {
-        chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut app.highlight_cache));
+        chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut app.highlight_cache, app.colors.user_name, app.colors.assistant_name));
     }
     
     if !chat_spans.is_empty() {

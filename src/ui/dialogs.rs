@@ -5,6 +5,7 @@ use ratatui::{
     style::{Color, Style},
 };
 use crate::app::AppState;
+use crate::config::AnsiColor;
 
 pub fn draw_dialogs(f: &mut Frame, app: &mut AppState, size: Rect) {
     // Save dialog overlay
@@ -20,6 +21,11 @@ pub fn draw_dialogs(f: &mut Frame, app: &mut AppState, size: Rect) {
     // Create directory dialog overlay
     if app.show_create_dir_dialog {
         draw_create_dir_dialog(f, app, size);
+    }
+
+    // Color configuration dialog overlay
+    if app.show_color_dialog {
+        draw_color_dialog(f, app, size);
     }
 
     // Exit confirmation dialog overlay (render last so it appears on top)
@@ -223,4 +229,109 @@ fn draw_error_dialog(f: &mut Frame, app: &AppState, size: Rect) {
         .style(Style::default().bg(Color::Black));
     
     f.render_widget(error_dialog, error_area);
+}
+
+fn draw_color_dialog(f: &mut Frame, app: &AppState, size: Rect) {
+    let dialog_area = Rect {
+        x: size.width / 6,
+        y: size.height / 6,
+        width: (size.width * 2) / 3,
+        height: (size.height * 2) / 3,
+    };
+    
+    f.render_widget(Clear, dialog_area);
+    
+    let color_options = [
+        ("Background", &app.colors.background),
+        ("Border", &app.colors.border),
+        ("Text", &app.colors.text),
+        ("User Name", &app.colors.user_name),
+        ("Assistant Name", &app.colors.assistant_name),
+    ];
+    
+    let available_colors = AnsiColor::all();
+    
+    // Create layout for the dialog
+    let dialog_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // Title
+            Constraint::Min(10),    // Color options
+            Constraint::Length(3),  // Instructions
+        ])
+        .split(dialog_area);
+    
+    // Title
+    let title = Paragraph::new("Color Configuration")
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Colors")
+            .title_style(Style::default().fg(Color::Yellow)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(title, dialog_layout[0]);
+    
+    // Color options area
+    let options_area = dialog_layout[1];
+    let options_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(40),  // Color type list
+            Constraint::Percentage(60),  // Color selection
+        ])
+        .split(options_area);
+    
+    // Left side - color type selection
+    let mut color_type_items = Vec::new();
+    for (i, (name, current_color)) in color_options.iter().enumerate() {
+        let style = if i == app.color_dialog_selection {
+            Style::default().bg(Color::Blue).fg(Color::White)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        
+        let display_text = format!("{}: {}", name, current_color.name());
+        color_type_items.push(ListItem::new(display_text).style(style));
+    }
+    
+    let color_type_list = List::new(color_type_items)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Color Type")
+            .title_style(Style::default().fg(Color::Cyan)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(color_type_list, options_layout[0]);
+    
+    // Right side - color selection
+    let mut color_items = Vec::new();
+    for (i, color) in available_colors.iter().enumerate() {
+        let style = if i == app.color_dialog_option {
+            Style::default().bg(Color::Blue).fg(Color::White)
+        } else {
+            Style::default().fg(color.to_ratatui_color())
+        };
+        
+        let display_text = format!("● {}", color.name());
+        color_items.push(ListItem::new(display_text).style(style));
+    }
+    
+    let color_list = List::new(color_items)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Available Colors")
+            .title_style(Style::default().fg(Color::Cyan)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(color_list, options_layout[1]);
+    
+    // Instructions
+    let instructions = Paragraph::new("↑↓: Navigate | ←→: Switch panels | Enter: Select color | Esc: Cancel")
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Instructions")
+            .title_style(Style::default().fg(Color::Green)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(instructions, dialog_layout[2]);
 }
