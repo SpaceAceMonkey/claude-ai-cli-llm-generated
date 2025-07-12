@@ -6,8 +6,9 @@ use crate::tui::format_message_for_tui_cached;
 pub fn handle_chat_scroll_up(app: &mut AppState) {
     if app.chat_scroll_offset > 0 {
         app.chat_scroll_offset -= 1;
-        app.auto_scroll = false;
     }
+    // Disable auto-scroll when user manually scrolls up
+    app.auto_scroll = false;
 }
 
 pub fn handle_chat_scroll_down(app: &mut AppState, terminal_size: (u16, u16)) {

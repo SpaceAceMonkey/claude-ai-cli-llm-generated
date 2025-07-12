@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
             app.status = "Ready".to_string();
             
             match result {
-                Ok((response, input_tokens, output_tokens, updated_messages)) => {
+                Ok((_response, input_tokens, output_tokens, updated_messages)) => {
                     // Normal response handling
                     if let Some(assistant_msg) = updated_messages.last() {
                         if assistant_msg.role == "assistant" {
