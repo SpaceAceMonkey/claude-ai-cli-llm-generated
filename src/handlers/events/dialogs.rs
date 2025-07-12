@@ -262,6 +262,10 @@ pub fn handle_color_dialog(app: &mut AppState, code: KeyCode) {
             app.color_dialog_scroll_offset = 0;
             app.color_dialog_selection_scroll_offset = 0;
         }
+        KeyCode::Char('r') | KeyCode::Char('R') => {
+            // Reset colors to defaults
+            app.colors.reset_to_defaults();
+        }
         KeyCode::Up => {
             if app.color_dialog_option > 0 {
                 app.color_dialog_option -= 1;

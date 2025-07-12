@@ -45,7 +45,8 @@ async fn main() -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     // Create color configuration from command line arguments
-    let colors = ColorConfig::from_args(&args)?;
+    let (color_result, config_error) = ColorConfig::from_args_and_saved(&args);
+    let colors = color_result?;
 
     // Initialize app state
     let mut app = app::AppState::new(
@@ -56,6 +57,11 @@ async fn main() -> Result<()> {
         args.simulate,
         colors,
     )?;
+    
+    // Show config error dialog if there was an issue loading the config
+    if let Some(error_msg) = config_error {
+        app.show_config_error(error_msg);
+    }
 
     // Channel for API responses
     let (tx, mut rx) = mpsc::channel::<Result<(String, u32, u32, Vec<Message>), String>>(10);
@@ -137,6 +143,11 @@ async fn main() -> Result<()> {
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
+    }
+
+    // Save color configuration before cleanup
+    if let Err(e) = app.save_color_config() {
+        eprintln!("Warning: Failed to save color configuration: {}", e);
     }
 
     // Cleanup: leave alternate screen and disable raw mode
