@@ -9,3 +9,5 @@ pub mod events;
 mod api_tests;
 #[cfg(test)]
 mod file_ops_tests;
+#[cfg(test)]
+mod file_ops_module_tests;

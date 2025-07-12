@@ -1,6 +1,7 @@
 // src/config.rs
 use clap::Parser;
 use ratatui::style::Color;
+use ratatui::symbols::border;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -11,6 +12,70 @@ pub const SHIFT_ENTER_SENDS: bool = false;
 pub const SHOW_DEBUG_MESSAGES: bool = false;
 
 pub const PROGRESS_FRAMES: [&str; 5] = ["    ", ".   ", "..  ", "... ", "...."];
+
+/// Available border styles for better text selection
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub enum BorderStyle {
+    /// Default ASCII borders (may interfere with text selection)
+    Ascii,
+    /// Rounded Unicode borders (better for text selection)
+    Rounded,
+    /// Thick Unicode borders
+    Thick,
+    /// Double-line Unicode borders
+    Double,
+    /// Plain Unicode borders
+    Plain,
+}
+
+impl BorderStyle {
+    pub fn to_ratatui_border_set(self) -> border::Set {
+        match self {
+            BorderStyle::Ascii => border::PLAIN,
+            BorderStyle::Rounded => border::ROUNDED,
+            BorderStyle::Thick => border::THICK,
+            BorderStyle::Double => border::DOUBLE,
+            BorderStyle::Plain => border::PLAIN,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            BorderStyle::Ascii => "ASCII",
+            BorderStyle::Rounded => "Rounded",
+            BorderStyle::Thick => "Thick",
+            BorderStyle::Double => "Double",
+            BorderStyle::Plain => "Plain",
+        }
+    }
+
+    pub fn all() -> Vec<BorderStyle> {
+        vec![
+            BorderStyle::Ascii,
+            BorderStyle::Rounded,
+            BorderStyle::Thick,
+            BorderStyle::Double,
+            BorderStyle::Plain,
+        ]
+    }
+
+    pub fn from_str(s: &str) -> anyhow::Result<Self> {
+        match s.to_lowercase().as_str() {
+            "ascii" => Ok(BorderStyle::Ascii),
+            "rounded" => Ok(BorderStyle::Rounded),
+            "thick" => Ok(BorderStyle::Thick),
+            "double" => Ok(BorderStyle::Double),
+            "plain" => Ok(BorderStyle::Plain),
+            _ => Err(anyhow::anyhow!("Invalid border style: {}", s)),
+        }
+    }
+}
+
+impl Default for BorderStyle {
+    fn default() -> Self {
+        BorderStyle::Rounded  // Default to rounded for better text selection
+    }
+}
 
 /// Available ANSI colors for user selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -141,6 +206,8 @@ pub struct ColorConfig {
     pub text: AnsiColor,
     pub user_name: AnsiColor,
     pub assistant_name: AnsiColor,
+    #[serde(default)]
+    pub border_style: BorderStyle,
 }
 
 impl Default for ColorConfig {
@@ -151,6 +218,7 @@ impl Default for ColorConfig {
             text: AnsiColor::White,
             user_name: AnsiColor::BrightBlue,
             assistant_name: AnsiColor::BrightGreen,
+            border_style: BorderStyle::default(),
         }
     }
 }
@@ -206,6 +274,13 @@ impl ColorConfig {
             } else {
                 config.assistant_name = AnsiColor::from_str(color_str).unwrap();
             }
+        }
+
+        // Parse border style
+        if let Err(e) = BorderStyle::from_str(&args.border_style) {
+            result = Err(e);
+        } else {
+            config.border_style = BorderStyle::from_str(&args.border_style).unwrap();
         }
 
         (result.map(|_| config), config_error)
@@ -317,6 +392,10 @@ pub struct Args {
     /// Assistant name color (default: bright-green)
     #[arg(long)]
     pub assistant_name_color: Option<String>,
+
+    /// Border style (default: rounded)
+    #[arg(long, default_value = "rounded")]
+    pub border_style: String,
 }
 
 #[cfg(test)]
@@ -338,6 +417,7 @@ mod command_line_override_tests {
             text_color: None,
             user_name_color: None,
             assistant_name_color: None,
+            border_style: "rounded".to_string(),
         };
 
         let (result, _) = ColorConfig::from_args_and_saved(&args);
@@ -362,6 +442,7 @@ mod command_line_override_tests {
             text_color: Some("white".to_string()),
             user_name_color: Some("bright-blue".to_string()),
             assistant_name_color: Some("bright-green".to_string()),
+            border_style: "rounded".to_string(),
         };
 
         let (result, _) = ColorConfig::from_args_and_saved(&args);
@@ -388,6 +469,7 @@ mod command_line_override_tests {
             text_color: None,
             user_name_color: None,
             assistant_name_color: None,
+            border_style: "rounded".to_string(),
         };
 
         let (result, _) = ColorConfig::from_args_and_saved(&args);

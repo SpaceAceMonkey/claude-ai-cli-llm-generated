@@ -7,6 +7,13 @@ use ratatui::{
 use crate::app::AppState;
 use crate::config::AnsiColor;
 
+/// Helper function to create a block with the configured border style
+fn create_dialog_block(app: &AppState) -> Block<'static> {
+    Block::default()
+        .borders(Borders::ALL)
+        .border_set(app.colors.border_style.to_ratatui_border_set())
+}
+
 pub fn draw_dialogs(f: &mut Frame, app: &mut AppState, size: Rect) {
     // Save dialog overlay
     if app.show_save_dialog {
@@ -62,8 +69,7 @@ fn draw_save_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
     let file_items: Vec<ListItem> = app.available_files.iter().map(|f| ListItem::new(f.as_str())).collect();
     
     let file_list = List::new(file_items)
-        .block(Block::default()
-            .borders(Borders::ALL)
+        .block(create_dialog_block(app)
             .title(format!("Save Conversation - {} (↑↓ to select, Enter to save/navigate, Tab to copy filename)", app.current_directory.display())))
         .highlight_style(Style::default().bg(Color::Blue))
         .style(Style::default().bg(Color::Black));

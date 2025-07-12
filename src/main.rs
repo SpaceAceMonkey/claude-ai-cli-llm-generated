@@ -15,6 +15,16 @@ mod config_utils_tests;
 mod main_loop_tests;
 #[cfg(test)]
 mod config_color_tests;
+#[cfg(test)]
+mod api_tests;
+#[cfg(test)]
+mod config_module_tests;
+#[cfg(test)]
+mod config_tests;
+#[cfg(test)]
+mod integration_tests;
+#[cfg(test)]
+mod main_tests;
 
 use anyhow::Result;
 use clap::Parser;

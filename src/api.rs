@@ -55,6 +55,12 @@ impl HighlightCache {
     }
 }
 
+impl Default for HighlightCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Serialize, Debug)]
 pub struct ApiRequest {
     pub model: String,

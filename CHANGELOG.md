@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Configurable Border Styles**: Added support for different border styles to improve text selection
+  - New `--border-style` command-line option with 5 styles: `ascii`, `rounded`, `thick`, `double`, `plain`
+  - Default changed to `rounded` for better text selection behavior
+  - Unicode border styles prevent ASCII characters from being included in text selection
+  - Backward compatibility maintained with existing config files
 - **Comprehensive Test Suite**: Implemented extensive unit, integration, and property-based tests
   - 75+ tests covering dialog handling, file operations, navigation, and error scenarios
   - Property-based tests using QuickCheck for robustness validation
@@ -23,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Color Configuration Error Handling**: Show error dialog when config file is corrupt or unreadable on startup
 - **Color Preferences Persistence**: Automatically save color preferences on application exit
 - **Enhanced Documentation**: Consolidated color configuration examples and usage patterns into main README.md
+
+### Fixed
+- **Text Selection Issue**: Unicode borders significantly reduce ASCII border characters being included in copied text
+- **Test Organization**: Reorganized test files to follow proper Rust conventions (tests alongside source code)
+- **Configuration Compatibility**: Added backward compatibility for existing config files when adding new border style option
 - **Organized Documentation Structure**: Created `docs/` directory with `development/` subdirectory for technical implementation details
 
 ### Fixed
