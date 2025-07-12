@@ -14,13 +14,15 @@ pub fn wrap_text(text: &str, width: usize) -> Vec<Line<'static>> {
     for (_i, line) in text_lines.iter().enumerate() {
         if line.is_empty() {
             lines.push(Line::from(""));
-        } else if line.len() <= width {
+        } else if line.chars().count() <= width {
             lines.push(Line::from(line.to_string()));
         } else {
+            let mut chars: Vec<char> = line.chars().collect();
             let mut start = 0;
-            while start < line.len() {
-                let end = (start + width).min(line.len());
-                lines.push(Line::from(line[start..end].to_string()));
+            while start < chars.len() {
+                let end = (start + width).min(chars.len());
+                let chunk: String = chars[start..end].iter().collect();
+                lines.push(Line::from(chunk));
                 start = end;
             }
         }
