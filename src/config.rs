@@ -172,39 +172,39 @@ impl ColorConfig {
 
         // Apply command-line overrides if specified
         let mut result = Ok(());
-        if args.background_color != "black" || args.reset_colors {
-            if let Err(e) = AnsiColor::from_str(&args.background_color) {
+        if let Some(color_str) = &args.background_color {
+            if let Err(e) = AnsiColor::from_str(color_str) {
                 result = Err(e);
             } else {
-                config.background = AnsiColor::from_str(&args.background_color).unwrap();
+                config.background = AnsiColor::from_str(color_str).unwrap();
             }
         }
-        if args.border_color != "white" || args.reset_colors {
-            if let Err(e) = AnsiColor::from_str(&args.border_color) {
+        if let Some(color_str) = &args.border_color {
+            if let Err(e) = AnsiColor::from_str(color_str) {
                 result = Err(e);
             } else {
-                config.border = AnsiColor::from_str(&args.border_color).unwrap();
+                config.border = AnsiColor::from_str(color_str).unwrap();
             }
         }
-        if args.text_color != "white" || args.reset_colors {
-            if let Err(e) = AnsiColor::from_str(&args.text_color) {
+        if let Some(color_str) = &args.text_color {
+            if let Err(e) = AnsiColor::from_str(color_str) {
                 result = Err(e);
             } else {
-                config.text = AnsiColor::from_str(&args.text_color).unwrap();
+                config.text = AnsiColor::from_str(color_str).unwrap();
             }
         }
-        if args.user_name_color != "bright-blue" || args.reset_colors {
-            if let Err(e) = AnsiColor::from_str(&args.user_name_color) {
+        if let Some(color_str) = &args.user_name_color {
+            if let Err(e) = AnsiColor::from_str(color_str) {
                 result = Err(e);
             } else {
-                config.user_name = AnsiColor::from_str(&args.user_name_color).unwrap();
+                config.user_name = AnsiColor::from_str(color_str).unwrap();
             }
         }
-        if args.assistant_name_color != "bright-green" || args.reset_colors {
-            if let Err(e) = AnsiColor::from_str(&args.assistant_name_color) {
+        if let Some(color_str) = &args.assistant_name_color {
+            if let Err(e) = AnsiColor::from_str(color_str) {
                 result = Err(e);
             } else {
-                config.assistant_name = AnsiColor::from_str(&args.assistant_name_color).unwrap();
+                config.assistant_name = AnsiColor::from_str(color_str).unwrap();
             }
         }
 
@@ -299,22 +299,103 @@ pub struct Args {
     pub reset_colors: bool,
 
     /// Background color (default: black)
-    #[arg(long, default_value = "black")]
-    pub background_color: String,
+    #[arg(long)]
+    pub background_color: Option<String>,
 
     /// Border color (default: white)
-    #[arg(long, default_value = "white")]
-    pub border_color: String,
+    #[arg(long)]
+    pub border_color: Option<String>,
 
     /// Text color (default: white)
-    #[arg(long, default_value = "white")]
-    pub text_color: String,
+    #[arg(long)]
+    pub text_color: Option<String>,
 
     /// User name color (default: bright-blue)
-    #[arg(long, default_value = "bright-blue")]
-    pub user_name_color: String,
+    #[arg(long)]
+    pub user_name_color: Option<String>,
 
     /// Assistant name color (default: bright-green)
-    #[arg(long, default_value = "bright-green")]
-    pub assistant_name_color: String,
+    #[arg(long)]
+    pub assistant_name_color: Option<String>,
+}
+
+#[cfg(test)]
+mod command_line_override_tests {
+    use super::*;
+
+    #[test]
+    fn test_background_color_black_override() {
+        // Test that --background-color black properly overrides config file values
+        let args = Args {
+            api_key: "dummy".to_string(),
+            model: "claude-3-5-sonnet-20241022".to_string(),
+            max_tokens: 1024,
+            temperature: 0.7,
+            simulate: false,
+            reset_colors: false,
+            background_color: Some("black".to_string()),
+            border_color: None,
+            text_color: None,
+            user_name_color: None,
+            assistant_name_color: None,
+        };
+
+        let (result, _) = ColorConfig::from_args_and_saved(&args);
+        assert!(result.is_ok());
+
+        let config = result.unwrap();
+        assert_eq!(config.background, AnsiColor::Black);
+    }
+
+    #[test]
+    fn test_all_default_colors_can_be_overridden() {
+        // Test that all default colors can be explicitly specified and will override config
+        let args = Args {
+            api_key: "dummy".to_string(),
+            model: "claude-3-5-sonnet-20241022".to_string(),
+            max_tokens: 1024,
+            temperature: 0.7,
+            simulate: false,
+            reset_colors: false,
+            background_color: Some("black".to_string()),
+            border_color: Some("white".to_string()),
+            text_color: Some("white".to_string()),
+            user_name_color: Some("bright-blue".to_string()),
+            assistant_name_color: Some("bright-green".to_string()),
+        };
+
+        let (result, _) = ColorConfig::from_args_and_saved(&args);
+        assert!(result.is_ok());
+
+        let config = result.unwrap();
+        assert_eq!(config.background, AnsiColor::Black);
+        assert_eq!(config.border, AnsiColor::White);
+        assert_eq!(config.text, AnsiColor::White);
+        assert_eq!(config.user_name, AnsiColor::BrightBlue);
+        assert_eq!(config.assistant_name, AnsiColor::BrightGreen);
+    }    #[test]
+    fn test_no_override_when_not_specified() {
+        // Test that when no color arguments are provided, we get defaults
+        let args = Args {
+            api_key: "dummy".to_string(),
+            model: "claude-3-5-sonnet-20241022".to_string(),
+            max_tokens: 1024,
+            temperature: 0.7,
+            simulate: false,
+            reset_colors: false,
+            background_color: None,
+            border_color: None,
+            text_color: None,
+            user_name_color: None,
+            assistant_name_color: None,
+        };
+
+        let (result, _) = ColorConfig::from_args_and_saved(&args);
+        assert!(result.is_ok());
+        
+        let config = result.unwrap();
+        // This test will load from config file if it exists, or defaults if not
+        // The important part is that the function doesn't crash and returns valid colors
+        assert!(matches!(config.background, AnsiColor::Black | AnsiColor::Red | AnsiColor::Green | AnsiColor::Yellow | AnsiColor::Blue | AnsiColor::Magenta | AnsiColor::Cyan | AnsiColor::White | AnsiColor::BrightBlack | AnsiColor::BrightRed | AnsiColor::BrightGreen | AnsiColor::BrightYellow | AnsiColor::BrightBlue | AnsiColor::BrightMagenta | AnsiColor::BrightCyan | AnsiColor::BrightWhite));
+    }
 }
