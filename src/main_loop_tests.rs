@@ -7,7 +7,7 @@ use tokio::time::{timeout, Duration};
 
 use crate::app::AppState;
 use crate::api::Message;
-use crate::config::{SCROLL_ON_USER_INPUT, SCROLL_ON_API_RESPONSE};
+use crate::config::{SCROLL_ON_USER_INPUT, SCROLL_ON_API_RESPONSE, default_test_colors};
 
 /// Helper function to create a test app state
 fn create_main_loop_test_app() -> AppState {
@@ -17,6 +17,7 @@ fn create_main_loop_test_app() -> AppState {
         1024,
         0.7,
         true, // simulate mode
+        default_test_colors(),
     ).expect("Failed to create test app state")
 }
 

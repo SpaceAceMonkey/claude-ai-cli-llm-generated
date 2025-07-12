@@ -13,6 +13,8 @@ mod ui;
 mod config_utils_tests;
 #[cfg(test)]
 mod main_loop_tests;
+#[cfg(test)]
+mod config_color_tests;
 
 use anyhow::Result;
 use clap::Parser;
@@ -27,7 +29,7 @@ use crossterm::{
     execute,
 };
 use tokio::sync::mpsc;
-use config::{Args, SCROLL_ON_USER_INPUT, SCROLL_ON_API_RESPONSE};
+use config::{Args, ColorConfig, SCROLL_ON_USER_INPUT, SCROLL_ON_API_RESPONSE};
 use std::time::Duration;
 use ui::{layout::create_main_layout, render::draw_ui};
 
@@ -42,6 +44,9 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    // Create color configuration from command line arguments
+    let colors = ColorConfig::from_args(&args)?;
+
     // Initialize app state
     let mut app = app::AppState::new(
         args.api_key,
@@ -49,6 +54,7 @@ async fn main() -> Result<()> {
         args.max_tokens,
         args.temperature,
         args.simulate,
+        colors,
     )?;
 
     // Channel for API responses

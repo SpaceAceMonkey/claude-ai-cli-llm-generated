@@ -5,6 +5,7 @@ use ratatui::{
     style::{Color, Style},
 };
 use crate::app::AppState;
+use crate::config::AnsiColor;
 
 pub fn draw_dialogs(f: &mut Frame, app: &mut AppState, size: Rect) {
     // Save dialog overlay
@@ -20,6 +21,11 @@ pub fn draw_dialogs(f: &mut Frame, app: &mut AppState, size: Rect) {
     // Create directory dialog overlay
     if app.show_create_dir_dialog {
         draw_create_dir_dialog(f, app, size);
+    }
+
+    // Color configuration dialog overlay
+    if app.show_color_dialog {
+        draw_color_dialog(f, app, size);
     }
 
     // Exit confirmation dialog overlay (render last so it appears on top)
@@ -223,4 +229,156 @@ fn draw_error_dialog(f: &mut Frame, app: &AppState, size: Rect) {
         .style(Style::default().bg(Color::Black));
     
     f.render_widget(error_dialog, error_area);
+}
+
+fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
+    let dialog_area = Rect {
+        x: size.width / 6,
+        y: size.height / 6,
+        width: (size.width * 2) / 3,
+        height: (size.height * 2) / 3,
+    };
+    
+    f.render_widget(Clear, dialog_area);
+    
+    // Clone the colors to avoid borrowing issues
+    let background_color = app.colors.background;
+    let border_color = app.colors.border;
+    let text_color = app.colors.text;
+    let user_name_color = app.colors.user_name;
+    let assistant_name_color = app.colors.assistant_name;
+    
+    let color_options = [
+        ("Background", background_color),
+        ("Border", border_color),
+        ("Text", text_color),
+        ("User Name", user_name_color),
+        ("Assistant Name", assistant_name_color),
+    ];
+    
+    let available_colors = AnsiColor::all();
+    
+    // Create layout for the dialog
+    let dialog_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // Title
+            Constraint::Min(1),     // Color options (at least 1 line)
+            Constraint::Length(3),  // Instructions
+        ])
+        .split(dialog_area);
+    
+    // Title
+    let title = Paragraph::new("Color Configuration")
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Colors")
+            .title_style(Style::default().fg(Color::Yellow)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(title, dialog_layout[0]);
+    
+    // Color options area
+    let options_area = dialog_layout[1];
+    let options_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(40),  // Color type list
+            Constraint::Percentage(60),  // Color selection
+        ])
+        .split(options_area);
+    
+    // Left side - color type selection with scrolling
+    let left_available_height = options_layout[0].height.saturating_sub(2); // subtract borders
+    let left_visible_count = std::cmp::max(1, left_available_height as usize); // Ensure at least 1 item is visible
+    
+    // Update scroll offset for left pane with actual available height
+    crate::handlers::events::update_color_dialog_selection_scroll_with_height(app, color_options.len(), left_visible_count);
+    
+    let left_scroll_offset = app.color_dialog_selection_scroll_offset;
+    let left_max_scroll = color_options.len().saturating_sub(left_visible_count);
+    let left_clamped_scroll_offset = std::cmp::min(left_scroll_offset, left_max_scroll);
+    let left_end_index = std::cmp::min(left_clamped_scroll_offset + left_visible_count, color_options.len());
+    
+    let mut color_type_items = Vec::new();
+    for (i, (name, current_color)) in color_options.iter().enumerate().skip(left_clamped_scroll_offset).take(left_end_index - left_clamped_scroll_offset) {
+        let style = if i == app.color_dialog_selection {
+            Style::default().bg(Color::Blue).fg(Color::White)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        
+        let display_text = format!("{}: {}", name, current_color.name());
+        color_type_items.push(ListItem::new(display_text).style(style));
+    }
+    
+    // Add scroll indicators for left pane if needed
+    let mut left_title = "Color Type".to_string();
+    if left_clamped_scroll_offset > 0 {
+        left_title = format!("{} ↑", left_title);
+    }
+    if left_end_index < color_options.len() {
+        left_title = format!("{} ↓", left_title);
+    }
+    
+    let color_type_list = List::new(color_type_items)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title(left_title)
+            .title_style(Style::default().fg(Color::Cyan)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(color_type_list, options_layout[0]);
+    
+    // Right side - color selection with scrolling
+    let right_available_height = options_layout[1].height.saturating_sub(2); // subtract borders
+    let right_visible_count = std::cmp::max(1, right_available_height as usize); // Ensure at least 1 item is visible
+    
+    // Update scroll offset for right pane with actual available height
+    crate::handlers::events::update_color_dialog_scroll_with_height(app, &available_colors, right_visible_count);
+    
+    let right_scroll_offset = app.color_dialog_scroll_offset;
+    let right_max_scroll = available_colors.len().saturating_sub(right_visible_count);
+    let right_clamped_scroll_offset = std::cmp::min(right_scroll_offset, right_max_scroll);
+    let right_end_index = std::cmp::min(right_clamped_scroll_offset + right_visible_count, available_colors.len());
+    
+    let mut color_items = Vec::new();
+    for (i, color) in available_colors.iter().enumerate().skip(right_clamped_scroll_offset).take(right_end_index - right_clamped_scroll_offset) {
+        let style = if i == app.color_dialog_option {
+            Style::default().bg(Color::Blue).fg(Color::White)
+        } else {
+            Style::default().fg(color.to_ratatui_color())
+        };
+        
+        let display_text = format!("● {}", color.name());
+        color_items.push(ListItem::new(display_text).style(style));
+    }
+    
+    // Add scroll indicators for right pane if needed
+    let mut right_title = "Available Colors".to_string();
+    if right_clamped_scroll_offset > 0 {
+        right_title = format!("{} ↑", right_title);
+    }
+    if right_end_index < available_colors.len() {
+        right_title = format!("{} ↓", right_title);
+    }
+    
+    let color_list = List::new(color_items)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title(right_title)
+            .title_style(Style::default().fg(Color::Cyan)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(color_list, options_layout[1]);
+    
+    // Instructions
+    let instructions = Paragraph::new("←→: Select color type | ↑↓: Select color | Enter: Apply | Esc: Cancel")
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Instructions")
+            .title_style(Style::default().fg(Color::Green)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(instructions, dialog_layout[2]);
 }

@@ -6,7 +6,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::syntax::highlight_code_block;
 use crate::api::HighlightCache;
-use crate::config::SHOW_DEBUG_MESSAGES;
+use crate::config::{SHOW_DEBUG_MESSAGES, AnsiColor};
 
 pub fn format_message_for_tui(role: &str, content: &str) -> Vec<Line<'static>> {
     let mut lines = Vec::new();
@@ -59,11 +59,19 @@ pub fn format_message_for_tui(role: &str, content: &str) -> Vec<Line<'static>> {
 // This version caches the formatted and highlighted content to avoid expensive
 // re-computation on every frame, which dramatically improves performance when
 // displaying conversations with lots of code blocks.
-pub fn format_message_for_tui_cached(role: &str, content: &str, cache: &mut HighlightCache) -> Vec<Line<'static>> {
-    // Calculate hash for the entire message content
+pub fn format_message_for_tui_cached(
+    role: &str, 
+    content: &str, 
+    cache: &mut HighlightCache,
+    user_color: AnsiColor,
+    assistant_color: AnsiColor,
+) -> Vec<Line<'static>> {
+    // Calculate hash for the entire message content including colors
     let mut hasher = DefaultHasher::new();
     content.hash(&mut hasher);
     role.hash(&mut hasher);
+    user_color.hash(&mut hasher);
+    assistant_color.hash(&mut hasher);
     let content_hash = hasher.finish();
     
     // Check if we have cached result
@@ -81,8 +89,8 @@ pub fn format_message_for_tui_cached(role: &str, content: &str, cache: &mut High
     // Format the message (same logic as original function)
     let mut lines = Vec::new();
     let (role_color, _) = match role {
-        "assistant" => (TuiColor::Cyan, "\x1b[0m"),
-        "user" => (TuiColor::Magenta, "\x1b[0m"),
+        "assistant" => (assistant_color.to_ratatui_color(), "\x1b[0m"),
+        "user" => (user_color.to_ratatui_color(), "\x1b[0m"),
         _ => (TuiColor::Yellow, "\x1b[0m"),
     };
 

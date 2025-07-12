@@ -1,6 +1,7 @@
 // src/app.rs
 use crate::client::ConversationClient;
 use crate::api::HighlightCache;
+use crate::config::ColorConfig;
 use rustyline::Editor;
 use ratatui::widgets::ListState;
 use std::path::PathBuf;
@@ -39,6 +40,14 @@ pub struct AppState {
     pub new_dir_name: String,
     pub show_exit_dialog: bool,
     pub exit_selected: usize,
+    
+    // Color configuration
+    pub colors: ColorConfig,
+    pub show_color_dialog: bool,
+    pub color_dialog_selection: usize,
+    pub color_dialog_option: usize,
+    pub color_dialog_scroll_offset: usize,
+    pub color_dialog_selection_scroll_offset: usize,
 }
 
 impl AppState {
@@ -48,6 +57,7 @@ impl AppState {
         max_tokens: u32,
         temperature: f32,
         simulate_mode: bool,
+        colors: ColorConfig,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             client: ConversationClient::new(api_key, model, max_tokens, temperature),
@@ -82,6 +92,14 @@ impl AppState {
             new_dir_name: String::new(),
             show_exit_dialog: false,
             exit_selected: 0,
+            
+            // Color configuration
+            colors,
+            show_color_dialog: false,
+            color_dialog_selection: 0,
+            color_dialog_option: 0,
+            color_dialog_scroll_offset: 0,
+            color_dialog_selection_scroll_offset: 0,
         })
     }
     

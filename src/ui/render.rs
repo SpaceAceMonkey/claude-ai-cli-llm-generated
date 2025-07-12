@@ -4,6 +4,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Wrap},
     layout::{Layout, Constraint, Direction, Rect},
     text::Text,
+    style::Style,
 };
 use crate::{
     app::AppState,
@@ -38,7 +39,13 @@ fn draw_chat(
 ) {
     let mut chat_spans = Vec::new();
     for msg in &app.client.messages {
-        chat_spans.extend(format_message_for_tui_cached(&msg.role, &msg.content, &mut app.highlight_cache));
+        chat_spans.extend(format_message_for_tui_cached(
+            &msg.role, 
+            &msg.content, 
+            &mut app.highlight_cache,
+            app.colors.user_name,
+            app.colors.assistant_name,
+        ));
     }
 
     // Calculate proper scroll offset if auto_scroll is enabled
@@ -55,9 +62,16 @@ fn draw_chat(
     };
     
     let chat = Paragraph::new(Text::from(chat_spans))
-        .block(Block::default().borders(Borders::ALL).title(chat_title))
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title(chat_title)
+            .border_style(Style::default().fg(app.colors.border.to_ratatui_color()))
+            .title_style(Style::default().fg(app.colors.border.to_ratatui_color())))
         .wrap(Wrap { trim: false })
-        .scroll((app.chat_scroll_offset, 0));
+        .scroll((app.chat_scroll_offset, 0))
+        .style(Style::default()
+            .bg(app.colors.background.to_ratatui_color())
+            .fg(app.colors.text.to_ratatui_color()));
     f.render_widget(chat, area);
 }
 
@@ -88,9 +102,16 @@ fn draw_input(
     };
     
     let input_bar = Paragraph::new(Text::from(input_lines))
-        .block(Block::default().borders(Borders::ALL).title(input_title))
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title(input_title)
+            .border_style(Style::default().fg(app.colors.border.to_ratatui_color()))
+            .title_style(Style::default().fg(app.colors.border.to_ratatui_color())))
         .wrap(Wrap { trim: false })
-        .scroll((app.input_scroll_offset, 0));
+        .scroll((app.input_scroll_offset, 0))
+        .style(Style::default()
+            .bg(app.colors.background.to_ratatui_color())
+            .fg(app.colors.text.to_ratatui_color()));
     f.render_widget(input_bar, area);
 
     // Calculate cursor position for rendering
@@ -130,7 +151,14 @@ fn draw_status(
     };
     
     let status_bar = Paragraph::new(status_text)
-        .block(Block::default().borders(Borders::ALL).title("Status"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Status")
+            .border_style(Style::default().fg(app.colors.border.to_ratatui_color()))
+            .title_style(Style::default().fg(app.colors.border.to_ratatui_color())))
+        .style(Style::default()
+            .bg(app.colors.background.to_ratatui_color())
+            .fg(app.colors.text.to_ratatui_color()));
     f.render_widget(status_bar, bottom_chunks[0]);
 
     // Token usage
@@ -141,6 +169,13 @@ fn draw_status(
         app.client.total_tokens()
     );
     let token_usage = Paragraph::new(token_usage_text)
-        .block(Block::default().borders(Borders::ALL).title("Token Usage"));
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Token Usage")
+            .border_style(Style::default().fg(app.colors.border.to_ratatui_color()))
+            .title_style(Style::default().fg(app.colors.border.to_ratatui_color())))
+        .style(Style::default()
+            .bg(app.colors.background.to_ratatui_color())
+            .fg(app.colors.text.to_ratatui_color()));
     f.render_widget(token_usage, bottom_chunks[1]);
 }

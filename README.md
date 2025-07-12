@@ -43,6 +43,11 @@ claudecli --api-key <API_KEY> [OPTIONS]
 - `--max-tokens <MAX_TOKENS>` - Maximum tokens in response (default: 1024)
 - `--temperature <TEMPERATURE>` - Response randomness 0.0-1.0 (default: 0.7)
 - `--simulate` - Run in simulate mode (no API calls)
+- `--background-color <COLOR>` - Background color (default: black)
+- `--border-color <COLOR>` - Border color (default: white)
+- `--text-color <COLOR>` - Text color (default: white)
+- `--user-name-color <COLOR>` - User name color (default: bright-blue)
+- `--assistant-name-color <COLOR>` - Assistant name color (default: bright-green)
 
 ### Essential Keyboard Shortcuts
 
@@ -62,9 +67,13 @@ claudecli --api-key <API_KEY> [OPTIONS]
 - **Ctrl+Q** - Exit with confirmation
 - **Escape** - Cancel dialogs
 
+#### Color Configuration
+- **Alt+Shift+C** - Open color configuration dialog
+
 ### Commands
 - **/save** - Open save dialog
 - **/load** - Open load dialog
+- **/colors** - Open color configuration dialog
 
 ### Interface Overview
 
@@ -133,6 +142,46 @@ The application behavior can be customized through compile-time flags:
 - **Auto-scroll Settings**:
   - `SCROLL_ON_USER_INPUT` - Auto-scroll when user sends message
   - `SCROLL_ON_API_RESPONSE` - Auto-scroll when Claude responds
+
+## Color Configuration
+
+The application supports user-configurable colors for a personalized TUI experience. Colors can be set via command line arguments or changed interactively during runtime.
+
+### Command Line Color Options
+
+```bash
+# Set individual colors
+claudecli --api-key <API_KEY> --background-color blue --border-color bright-white
+
+# Complete color theme
+claudecli --api-key <API_KEY> \
+  --background-color black \
+  --border-color bright-white \
+  --text-color white \
+  --user-name-color bright-blue \
+  --assistant-name-color bright-green
+```
+
+**Available Color Options:**
+- `--background-color` - Main background color (default: black)
+- `--border-color` - Window borders and dividers (default: white)
+- `--text-color` - Regular text content (default: white)
+- `--user-name-color` - User name in conversations (default: bright-blue)
+- `--assistant-name-color` - Assistant name in conversations (default: bright-green)
+
+**Supported Colors:**
+- Standard: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`
+- Bright variants: `bright-black`, `bright-red`, `bright-green`, `bright-yellow`, `bright-blue`, `bright-magenta`, `bright-cyan`, `bright-white`
+
+### Interactive Color Selection
+
+Press **Alt+Shift+C** while the application is running to open the color configuration dialog, or use the `/colors` command:
+- **Left/Right** - Navigate between color type options
+- **Up/Down** - Navigate between color choices
+- **Enter** - Apply selected colors
+- **Escape** - Cancel and return to main interface
+
+For detailed color configuration examples and usage patterns, see [COLOR_USAGE.md](COLOR_USAGE.md).
 
 ## About This Project
 
