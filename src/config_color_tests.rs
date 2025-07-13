@@ -30,8 +30,9 @@ mod color_tests {
         
         assert_eq!(AnsiColor::Black.to_ratatui_color(), Color::Black);
         assert_eq!(AnsiColor::Red.to_ratatui_color(), Color::Red);
+        assert_eq!(AnsiColor::White.to_ratatui_color(), Color::Gray);
         assert_eq!(AnsiColor::BrightBlue.to_ratatui_color(), Color::LightBlue);
-        assert_eq!(AnsiColor::BrightWhite.to_ratatui_color(), Color::Gray);
+        assert_eq!(AnsiColor::BrightWhite.to_ratatui_color(), Color::White);
     }
 
     #[test]
