@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Configurable Border Styles**: Added support for different border styles
+  - New `--border-style` command-line option with 4 styles: `ascii`, `rounded`, `thick`, `double`
+  - Default is `ascii`
+  - Backward compatibility maintained with existing config files
 - **Comprehensive Test Suite**: Implemented extensive unit, integration, and property-based tests
   - 75+ tests covering dialog handling, file operations, navigation, and error scenarios
   - Property-based tests using QuickCheck for robustness validation
@@ -23,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Color Configuration Error Handling**: Show error dialog when config file is corrupt or unreadable on startup
 - **Color Preferences Persistence**: Automatically save color preferences on application exit
 - **Enhanced Documentation**: Consolidated color configuration examples and usage patterns into main README.md
+
+### Fixed
+- **Test Organization**: Reorganized test files to follow proper Rust conventions (tests alongside source code)
+- **Configuration Compatibility**: Added backward compatibility for existing config files when adding new border style option
 - **Organized Documentation Structure**: Created `docs/` directory with `development/` subdirectory for technical implementation details
 
 ### Fixed
@@ -31,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking Change Resolution**: Systematically fixed 44+ test compilation errors after ColorConfig API changes
 
 ### Changed
+- **Border Style Simplification**: Removed redundant `plain` border style that was identical to `ascii` style
 - **Color Configuration Architecture**: Refactored color argument parsing to use `Option<String>` instead of default values, enabling proper distinction between "not provided" vs "explicitly provided" arguments
 - **Documentation Organization**: Removed redundant markdown files (`COLOR_USAGE.md`, `HOTKEY_UPDATE.md`, `DIALOG_INSTRUCTIONS_FIX.md`) and consolidated essential information into main README.md
 - **Project Structure**: Moved development-specific documentation to `docs/development/` directory for better organization

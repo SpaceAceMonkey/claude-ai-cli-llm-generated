@@ -45,6 +45,7 @@ claudecli --api-key <API_KEY> [OPTIONS]
 - `--simulate` - Run in simulate mode (no API calls)
 - `--background-color <COLOR>` - Background color (default: black)
 - `--border-color <COLOR>` - Border color (default: white)
+- `--border-style <STYLE>` - Border style (default: rounded)
 - `--text-color <COLOR>` - Text color (default: white)
 - `--user-name-color <COLOR>` - User name color (default: bright-blue)
 - `--assistant-name-color <COLOR>` - Assistant name color (default: bright-green)
@@ -174,6 +175,7 @@ claudecli --api-key <API_KEY> \
 **Available Color Options:**
 - `--background-color` - Main background color (default: black)
 - `--border-color` - Window borders and dividers (default: white)
+- `--border-style` - Border style (default: ascii)
 - `--text-color` - Regular text content (default: white)
 - `--user-name-color` - User name in conversations (default: bright-blue)
 - `--assistant-name-color` - Assistant name in conversations (default: bright-green)
@@ -181,6 +183,12 @@ claudecli --api-key <API_KEY> \
 **Supported Colors:**
 - Standard: `black`, `red`, `green`, `yellow`, `blue`, `magenta`, `cyan`, `white`
 - Bright variants: `bright-black`, `bright-red`, `bright-green`, `bright-yellow`, `bright-blue`, `bright-magenta`, `bright-cyan`, `bright-white`
+
+**Supported Border Styles:**
+- `ascii` - ASCII borders using +, -, | characters
+- `rounded` - Rounded Unicode borders with curved corners
+- `thick` - Thick Unicode borders with bold lines
+- `double` - Double-line Unicode borders with parallel lines
 
 ### Interactive Color Selection
 
@@ -217,9 +225,18 @@ claudecli --api-key <API_KEY> \
 claudecli --api-key <API_KEY> \
   --background-color white \
   --border-color black \
+  --border-style double \
   --text-color black \
   --user-name-color blue \
   --assistant-name-color green
+```
+
+**Better Text Selection Example:**
+```bash
+claudecli --api-key <API_KEY> \
+  --border-style rounded \
+  --background-color black \
+  --border-color bright-white
 ```
 
 > **Note**: Color changes made through the interactive dialog are applied immediately to the current session and are automatically saved to `~/.config/claudecli/config.json` for persistence across sessions.

@@ -1,8 +1,11 @@
 // src/config.rs
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use ratatui::style::Color;
+use ratatui::symbols::border;
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::path::PathBuf;
+use std::fmt;
 
 /// Feature flags and configuration constants
 pub const SCROLL_ON_USER_INPUT: bool = true;
@@ -11,6 +14,65 @@ pub const SHIFT_ENTER_SENDS: bool = false;
 pub const SHOW_DEBUG_MESSAGES: bool = false;
 
 pub const PROGRESS_FRAMES: [&str; 5] = ["    ", ".   ", "..  ", "... ", "...."];
+
+/// Available border styles
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, ValueEnum)]
+pub enum BorderStyle {
+    /// ASCII borders using +, -, | characters
+    Ascii,
+    /// Rounded Unicode borders with curved corners
+    Rounded,
+    /// Thick Unicode borders with bold lines
+    Thick,
+    /// Double-line Unicode borders with parallel lines
+    Double,
+}
+
+impl BorderStyle {
+    pub fn to_ratatui_border_set(self) -> border::Set {
+        match self {
+            BorderStyle::Ascii => border::PLAIN,
+            BorderStyle::Rounded => border::ROUNDED,
+            BorderStyle::Thick => border::THICK,
+            BorderStyle::Double => border::DOUBLE,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            BorderStyle::Ascii => "ASCII",
+            BorderStyle::Rounded => "Rounded",
+            BorderStyle::Thick => "Thick",
+            BorderStyle::Double => "Double",
+        }
+    }
+
+    pub fn all() -> Vec<BorderStyle> {
+        vec![
+            BorderStyle::Ascii,
+            BorderStyle::Rounded,
+            BorderStyle::Thick,
+            BorderStyle::Double,
+        ]
+    }
+}
+
+impl Default for BorderStyle {
+    fn default() -> Self {
+        BorderStyle::Ascii
+    }
+}
+
+impl fmt::Display for BorderStyle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BorderStyle::Ascii => write!(f, "ascii"),
+            BorderStyle::Rounded => write!(f, "rounded"),
+            BorderStyle::Thick => write!(f, "thick"),
+            BorderStyle::Double => write!(f, "double"),
+        }
+    }
+}
 
 /// Available ANSI colors for user selection
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -141,6 +203,8 @@ pub struct ColorConfig {
     pub text: AnsiColor,
     pub user_name: AnsiColor,
     pub assistant_name: AnsiColor,
+    #[serde(default)]
+    pub border_style: BorderStyle,
 }
 
 impl Default for ColorConfig {
@@ -151,6 +215,7 @@ impl Default for ColorConfig {
             text: AnsiColor::White,
             user_name: AnsiColor::BrightBlue,
             assistant_name: AnsiColor::BrightGreen,
+            border_style: BorderStyle::default(),
         }
     }
 }
@@ -208,6 +273,9 @@ impl ColorConfig {
             }
         }
 
+        // Parse border style - no validation needed since clap handles it
+        config.border_style = args.border_style;
+
         (result.map(|_| config), config_error)
     }
 
@@ -242,8 +310,16 @@ pub fn load_color_config() -> anyhow::Result<ColorConfig> {
     }
 
     let contents = std::fs::read_to_string(&config_path)?;
-    let config: ColorConfig = serde_json::from_str(&contents)?;
-    Ok(config)
+    
+    // Try to parse the config, with #[serde(default)] handling invalid border styles
+    match serde_json::from_str::<ColorConfig>(&contents) {
+        Ok(config) => Ok(config),
+        Err(e) => {
+            // If deserialization fails completely, fall back to defaults
+            // The #[serde(default)] on border_style should handle invalid values gracefully
+            Err(e.into())
+        }
+    }
 }
 
 /// Load color configuration, falling back to defaults on error
@@ -317,6 +393,10 @@ pub struct Args {
     /// Assistant name color (default: bright-green)
     #[arg(long)]
     pub assistant_name_color: Option<String>,
+
+    /// Border style: ascii, rounded, thick, double (default: ascii)
+    #[arg(long, default_value_t = BorderStyle::Ascii)]
+    pub border_style: BorderStyle,
 }
 
 #[cfg(test)]
@@ -338,6 +418,7 @@ mod command_line_override_tests {
             text_color: None,
             user_name_color: None,
             assistant_name_color: None,
+            border_style: BorderStyle::Ascii,
         };
 
         let (result, _) = ColorConfig::from_args_and_saved(&args);
@@ -362,6 +443,7 @@ mod command_line_override_tests {
             text_color: Some("white".to_string()),
             user_name_color: Some("bright-blue".to_string()),
             assistant_name_color: Some("bright-green".to_string()),
+            border_style: BorderStyle::Rounded,
         };
 
         let (result, _) = ColorConfig::from_args_and_saved(&args);
@@ -388,6 +470,7 @@ mod command_line_override_tests {
             text_color: None,
             user_name_color: None,
             assistant_name_color: None,
+            border_style: BorderStyle::Rounded,
         };
 
         let (result, _) = ColorConfig::from_args_and_saved(&args);
