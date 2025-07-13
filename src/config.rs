@@ -105,7 +105,7 @@ impl AnsiColor {
             AnsiColor::Blue => Color::Blue,
             AnsiColor::Magenta => Color::Magenta,
             AnsiColor::Cyan => Color::Cyan,
-            AnsiColor::White => Color::White,
+            AnsiColor::White => Color::Gray,
             AnsiColor::BrightBlack => Color::DarkGray,
             AnsiColor::BrightRed => Color::LightRed,
             AnsiColor::BrightGreen => Color::LightGreen,
@@ -113,7 +113,7 @@ impl AnsiColor {
             AnsiColor::BrightBlue => Color::LightBlue,
             AnsiColor::BrightMagenta => Color::LightMagenta,
             AnsiColor::BrightCyan => Color::LightCyan,
-            AnsiColor::BrightWhite => Color::Gray,
+            AnsiColor::BrightWhite => Color::White,
         }
     }
 
