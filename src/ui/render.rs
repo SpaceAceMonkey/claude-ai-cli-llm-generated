@@ -8,7 +8,7 @@ use ratatui::{
 };
 use crate::{
     app::AppState,
-    config::*,
+    config::{SHIFT_ENTER_SENDS, PROGRESS_FRAMES},
     tui::format_message_for_tui_cached,
     utils::{text::*, scroll::*},
     ui::dialogs::draw_dialogs,

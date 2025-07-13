@@ -175,7 +175,7 @@ claudecli --api-key <API_KEY> \
 **Available Color Options:**
 - `--background-color` - Main background color (default: black)
 - `--border-color` - Window borders and dividers (default: white)
-- `--border-style` - Border style for better text selection (default: rounded)
+- `--border-style` - Border style (default: ascii)
 - `--text-color` - Regular text content (default: white)
 - `--user-name-color` - User name in conversations (default: bright-blue)
 - `--assistant-name-color` - Assistant name in conversations (default: bright-green)
@@ -185,13 +185,10 @@ claudecli --api-key <API_KEY> \
 - Bright variants: `bright-black`, `bright-red`, `bright-green`, `bright-yellow`, `bright-blue`, `bright-magenta`, `bright-cyan`, `bright-white`
 
 **Supported Border Styles:**
-- `ascii` - Standard ASCII borders (may interfere with text selection)
-- `rounded` - Rounded Unicode borders (recommended for better text selection)
-- `thick` - Thick Unicode borders
-- `double` - Double-line Unicode borders  
-- `plain` - Plain Unicode borders
-
-> **Note:** Unicode border styles (rounded, thick, double, plain) provide better text selection behavior than ASCII borders. When copying text from the application, Unicode borders are less likely to be included in the selection.
+- `ascii` - ASCII borders using +, -, | characters
+- `rounded` - Rounded Unicode borders with curved corners
+- `thick` - Thick Unicode borders with bold lines
+- `double` - Double-line Unicode borders with parallel lines
 
 ### Interactive Color Selection
 

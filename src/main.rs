@@ -39,13 +39,19 @@ use crossterm::{
     execute,
 };
 use tokio::sync::mpsc;
-use config::{Args, ColorConfig, SCROLL_ON_USER_INPUT, SCROLL_ON_API_RESPONSE};
+use config::{Args, ColorConfig, BorderStyle, SCROLL_ON_USER_INPUT, SCROLL_ON_API_RESPONSE};
 use std::time::Duration;
 use ui::{layout::create_main_layout, render::draw_ui};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    
+    // Validate border style early before setting up TUI
+    if let Err(e) = BorderStyle::from_str(&args.border_style) {
+        eprintln!("Error: {}", e);
+        std::process::exit(1);
+    }
 
     // Setup TUI
     enable_raw_mode()?;
