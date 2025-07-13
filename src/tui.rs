@@ -1,6 +1,5 @@
 use ratatui::text::{Span, Line};
 use ratatui::style::{Style as TuiStyle, Color as TuiColor};
-use ratatui::style::Stylize;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -41,7 +40,7 @@ pub fn format_message_for_tui(role: &str, content: &str) -> Vec<Line<'static>> {
             lines.push(Line::from(vec![
                 Span::styled(
                     format!("[{}]: ", role),
-                    TuiStyle::default().fg(role_color).bold(),
+                    TuiStyle::default().fg(role_color),
                 ),
                 Span::raw(line.to_string()),
             ]));
@@ -119,7 +118,7 @@ pub fn format_message_for_tui_cached(
             lines.push(Line::from(vec![
                 Span::styled(
                     format!("[{}]: ", role),
-                    TuiStyle::default().fg(role_color).bold(),
+                    TuiStyle::default().fg(role_color),
                 ),
                 Span::raw(line.to_string()),
             ]));
