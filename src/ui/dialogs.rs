@@ -69,6 +69,21 @@ fn draw_save_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
         height: size.height / 2,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     // Split the dialog area to reserve space for filename input
@@ -114,6 +129,21 @@ fn draw_load_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
         height: size.height / 2,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     let file_items: Vec<ListItem> = app.available_files.iter().map(|f| ListItem::new(f.as_str())).collect();
@@ -136,6 +166,21 @@ fn draw_create_dir_dialog(f: &mut Frame, app: &AppState, size: Rect) {
         height: 5,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     let create_dialog = Paragraph::new(format!("Enter directory name: {}", app.new_dir_name))
@@ -185,6 +230,21 @@ fn draw_exit_dialog(f: &mut Frame, app: &AppState, size: Rect) {
         height: 6,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     let exit_dialog = Paragraph::new("Exit the program?\n\nUse ↑↓ or Y/N to select, Enter to confirm.")
@@ -239,6 +299,21 @@ fn draw_error_dialog(f: &mut Frame, app: &AppState, size: Rect) {
         height: size.height / 4,
     };
     
+    // Create outer border area
+    let outer_border_area = Rect {
+        x: error_area.x.saturating_sub(1),
+        y: error_area.y.saturating_sub(1),
+        width: error_area.width + 2,
+        height: error_area.height + 2,
+    };
+    
+    // Render outer border
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    f.render_widget(outer_border, outer_border_area);
+    
     f.render_widget(Clear, error_area);
     
     let error_dialog = Paragraph::new(app.error_message.clone())
@@ -279,6 +354,21 @@ fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
         height: dialog_height,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     // Clone the colors to avoid borrowing issues
@@ -447,6 +537,21 @@ fn draw_profile_dialog(f: &mut Frame, app: &AppState, size: Rect) {
         width: dialog_width,
         height: dialog_height,
     };
+    
+    // Create outer border area for visual separation
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    f.render_widget(outer_border, outer_border_area);
     
     f.render_widget(Clear, dialog_area);
     
