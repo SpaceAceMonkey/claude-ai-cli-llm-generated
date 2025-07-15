@@ -397,3 +397,71 @@ pub fn update_color_dialog_selection_scroll_with_height(app: &mut AppState, tota
         *scroll_offset = max_scroll;
     }
 }
+
+pub fn handle_profile_dialog(app: &mut AppState, code: KeyCode) {
+    match code {
+        KeyCode::Enter => {
+            // Apply selected profile
+            let profiles: Vec<_> = app.available_profiles.values().collect();
+            if app.profile_dialog_selection < profiles.len() {
+                if let Some(profile) = profiles.get(app.profile_dialog_selection) {
+                    app.colors = profile.config.clone();
+                    // Save the applied profile as current config
+                    if let Err(e) = crate::config::save_color_config(&app.colors) {
+                        app.show_error_dialog = true;
+                        app.error_message = format!("Failed to save color configuration: {}", e);
+                    }
+                }
+            }
+            app.show_profile_dialog = false;
+            app.profile_dialog_selection = 0;
+            app.profile_dialog_scroll_offset = 0;
+        }
+        KeyCode::Esc => {
+            // Cancel - close dialog
+            app.show_profile_dialog = false;
+            app.profile_dialog_selection = 0;
+            app.profile_dialog_scroll_offset = 0;
+        }
+        KeyCode::Up => {
+            if app.profile_dialog_selection > 0 {
+                app.profile_dialog_selection -= 1;
+            }
+            update_profile_dialog_scroll(app);
+        }
+        KeyCode::Down => {
+            if app.profile_dialog_selection < app.available_profiles.len().saturating_sub(1) {
+                app.profile_dialog_selection += 1;
+            }
+            update_profile_dialog_scroll(app);
+        }
+        KeyCode::Char('s') | KeyCode::Char('S') => {
+            // Save current config as custom profile
+            // TODO: Implement custom profile saving dialog
+            app.show_error_dialog = true;
+            app.error_message = "Custom profile saving not yet implemented".to_string();
+        }
+        _ => {}
+    }
+}
+
+fn update_profile_dialog_scroll(app: &mut AppState) {
+    let total_profiles = app.available_profiles.len();
+    let visible_height = 10; // Approximate visible height, should be calculated based on dialog size
+    
+    let current_selection = app.profile_dialog_selection;
+    let scroll_offset = &mut app.profile_dialog_scroll_offset;
+    
+    // Adjust scroll offset to keep selection visible
+    if current_selection < *scroll_offset {
+        *scroll_offset = current_selection;
+    } else if current_selection >= *scroll_offset + visible_height {
+        *scroll_offset = current_selection.saturating_sub(visible_height - 1);
+    }
+    
+    // Ensure scroll offset doesn't go beyond the available range
+    let max_scroll = total_profiles.saturating_sub(visible_height);
+    if *scroll_offset > max_scroll {
+        *scroll_offset = max_scroll;
+    }
+}

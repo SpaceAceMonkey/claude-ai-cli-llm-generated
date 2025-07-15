@@ -5,6 +5,7 @@ use crate::config::ColorConfig;
 use rustyline::Editor;
 use ratatui::widgets::ListState;
 use std::path::PathBuf;
+use std::collections::HashMap;
 use crate::handlers::file_ops::get_saves_directory;
 
 pub struct AppState {
@@ -48,6 +49,12 @@ pub struct AppState {
     pub color_dialog_option: usize,
     pub color_dialog_scroll_offset: usize,
     pub color_dialog_selection_scroll_offset: usize,
+    
+    // Color profile management
+    pub show_profile_dialog: bool,
+    pub profile_dialog_selection: usize,
+    pub profile_dialog_scroll_offset: usize,
+    pub available_profiles: HashMap<String, crate::config::ColorProfile>,
 }
 
 impl AppState {
@@ -100,6 +107,12 @@ impl AppState {
             color_dialog_option: 0,
             color_dialog_scroll_offset: 0,
             color_dialog_selection_scroll_offset: 0,
+            
+            // Color profile management
+            show_profile_dialog: false,
+            profile_dialog_selection: 0,
+            profile_dialog_scroll_offset: 0,
+            available_profiles: crate::config::get_all_profiles(),
         })
     }
     

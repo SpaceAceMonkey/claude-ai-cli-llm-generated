@@ -99,7 +99,41 @@ pub fn handle_keyboard_shortcuts(
             app.exit_selected = 0;
             true
         }
-        // Color configuration shortcut - Alt+Shift+C
+        // Color configuration shortcuts - Multiple alternatives for terminal compatibility
+        // Primary reliable shortcut: Ctrl+Shift+C
+        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) && modifiers.contains(KeyModifiers::SHIFT) => {
+            app.show_color_dialog = true;
+            app.color_dialog_selection = 0;
+            app.color_dialog_option = 0;
+            true
+        }
+        KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) && modifiers.contains(KeyModifiers::SHIFT) => {
+            app.show_color_dialog = true;
+            app.color_dialog_selection = 0;
+            app.color_dialog_option = 0;
+            true
+        }
+        // Alternative: F3 function key (very reliable across terminals)
+        KeyCode::F(3) => {
+            app.show_color_dialog = true;
+            app.color_dialog_selection = 0;
+            app.color_dialog_option = 0;
+            true
+        }
+        // Alternative: Ctrl+Alt+C (more reliable than Alt+Shift)
+        KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) && modifiers.contains(KeyModifiers::ALT) => {
+            app.show_color_dialog = true;
+            app.color_dialog_selection = 0;
+            app.color_dialog_option = 0;
+            true
+        }
+        KeyCode::Char('C') if modifiers.contains(KeyModifiers::CONTROL) && modifiers.contains(KeyModifiers::ALT) => {
+            app.show_color_dialog = true;
+            app.color_dialog_selection = 0;
+            app.color_dialog_option = 0;
+            true
+        }
+        // Legacy: Alt+Shift+C (kept for backwards compatibility, but unreliable)
         KeyCode::Char('c') if modifiers.contains(KeyModifiers::ALT) && modifiers.contains(KeyModifiers::SHIFT) => {
             app.show_color_dialog = true;
             app.color_dialog_selection = 0;
@@ -110,6 +144,54 @@ pub fn handle_keyboard_shortcuts(
             app.show_color_dialog = true;
             app.color_dialog_selection = 0;
             app.color_dialog_option = 0;
+            true
+        }
+        
+        // Color profile shortcuts - Multiple alternatives for terminal compatibility
+        // Primary reliable shortcut: Ctrl+Shift+P
+        KeyCode::Char('p') if modifiers.contains(KeyModifiers::CONTROL) && modifiers.contains(KeyModifiers::SHIFT) => {
+            app.show_profile_dialog = true;
+            app.profile_dialog_selection = 0;
+            app.profile_dialog_scroll_offset = 0;
+            true
+        }
+        KeyCode::Char('P') if modifiers.contains(KeyModifiers::CONTROL) && modifiers.contains(KeyModifiers::SHIFT) => {
+            app.show_profile_dialog = true;
+            app.profile_dialog_selection = 0;
+            app.profile_dialog_scroll_offset = 0;
+            true
+        }
+        // Alternative: F4 function key (very reliable across terminals)
+        KeyCode::F(4) => {
+            app.show_profile_dialog = true;
+            app.profile_dialog_selection = 0;
+            app.profile_dialog_scroll_offset = 0;
+            true
+        }
+        // Alternative: Ctrl+Alt+P (more reliable than Alt+Shift)
+        KeyCode::Char('p') if modifiers.contains(KeyModifiers::CONTROL) && modifiers.contains(KeyModifiers::ALT) => {
+            app.show_profile_dialog = true;
+            app.profile_dialog_selection = 0;
+            app.profile_dialog_scroll_offset = 0;
+            true
+        }
+        KeyCode::Char('P') if modifiers.contains(KeyModifiers::CONTROL) && modifiers.contains(KeyModifiers::ALT) => {
+            app.show_profile_dialog = true;
+            app.profile_dialog_selection = 0;
+            app.profile_dialog_scroll_offset = 0;
+            true
+        }
+        // Legacy: Alt+Shift+P (kept for backwards compatibility, but unreliable)
+        KeyCode::Char('p') if modifiers.contains(KeyModifiers::ALT) && modifiers.contains(KeyModifiers::SHIFT) => {
+            app.show_profile_dialog = true;
+            app.profile_dialog_selection = 0;
+            app.profile_dialog_scroll_offset = 0;
+            true
+        }
+        KeyCode::Char('P') if modifiers.contains(KeyModifiers::ALT) && modifiers.contains(KeyModifiers::SHIFT) => {
+            app.show_profile_dialog = true;
+            app.profile_dialog_selection = 0;
+            app.profile_dialog_scroll_offset = 0;
             true
         }
         _ => false

@@ -57,4 +57,70 @@ mod color_tests {
         assert_eq!(config.user_name, AnsiColor::BrightYellow);
         assert_eq!(config.assistant_name, AnsiColor::BrightCyan);
     }
+
+    #[test]
+    fn test_color_profile_embedded_loading() {
+        let profiles = crate::config::load_embedded_profiles().unwrap();
+        
+        // Check that all expected profiles are loaded
+        assert!(profiles.contains_key("default"));
+        assert!(profiles.contains_key("matrix"));
+        assert!(profiles.contains_key("ocean"));
+        assert!(profiles.contains_key("sunset"));
+        
+        // Check default profile structure
+        let default_profile = &profiles["default"];
+        assert_eq!(default_profile.name, "Default");
+        assert_eq!(default_profile.description, "Default color scheme");
+        assert_eq!(default_profile.config.background, AnsiColor::Black);
+        assert_eq!(default_profile.config.user_name, AnsiColor::BrightBlue);
+        assert_eq!(default_profile.config.assistant_name, AnsiColor::BrightGreen);
+        
+        // Check matrix profile structure
+        let matrix_profile = &profiles["matrix"];
+        assert_eq!(matrix_profile.name, "Matrix");
+        assert_eq!(matrix_profile.description, "Green-on-black matrix style");
+        assert_eq!(matrix_profile.config.background, AnsiColor::Black);
+        assert_eq!(matrix_profile.config.border, AnsiColor::Green);
+        assert_eq!(matrix_profile.config.text, AnsiColor::BrightGreen);
+    }
+
+    #[test]
+    fn test_color_profile_creation() {
+        let config = ColorConfig {
+            background: AnsiColor::Black,
+            border: AnsiColor::Red,
+            text: AnsiColor::White,
+            user_name: AnsiColor::BrightBlue,
+            assistant_name: AnsiColor::BrightGreen,
+            border_style: crate::config::BorderStyle::Rounded,
+        };
+        
+        let profile = crate::config::ColorProfile::new(
+            "Test Profile".to_string(),
+            "A test color profile".to_string(),
+            config.clone(),
+        );
+        
+        assert_eq!(profile.name, "Test Profile");
+        assert_eq!(profile.description, "A test color profile");
+        assert_eq!(profile.config.background, config.background);
+        assert_eq!(profile.config.border, config.border);
+        assert_eq!(profile.config.text, config.text);
+        assert_eq!(profile.config.user_name, config.user_name);
+        assert_eq!(profile.config.assistant_name, config.assistant_name);
+        assert_eq!(profile.config.border_style, config.border_style);
+    }
+
+    #[test]
+    fn test_get_all_profiles() {
+        let all_profiles = crate::config::get_all_profiles();
+        
+        // Should contain at least the embedded profiles
+        assert!(all_profiles.len() >= 4);
+        assert!(all_profiles.contains_key("default"));
+        assert!(all_profiles.contains_key("matrix"));
+        assert!(all_profiles.contains_key("ocean"));
+        assert!(all_profiles.contains_key("sunset"));
+    }
 }

@@ -69,12 +69,22 @@ claudecli --api-key <API_KEY> [OPTIONS]
 - **Escape** - Cancel dialogs
 
 #### Color Configuration
-- **Alt+Shift+C** - Open color configuration dialog
+- **Ctrl+Shift+C** - Open color configuration dialog (primary)
+- **F3** - Open color configuration dialog (function key alternative)
+- **Ctrl+Alt+C** - Open color configuration dialog (alternative)
+- **Alt+Shift+C** - Open color configuration dialog (legacy, may not work in all terminals)
+
+#### Color Profiles
+- **Ctrl+Shift+P** - Open color profile dialog (primary)
+- **F4** - Open color profile dialog (function key alternative)
+- **Ctrl+Alt+P** - Open color profile dialog (alternative)
+- **Alt+Shift+P** - Open color profile dialog (legacy, may not work in all terminals)
 
 ### Commands
 - **/save** - Open save dialog
 - **/load** - Open load dialog
 - **/colors** - Open color configuration dialog
+- **/profiles** - Open color profile dialog
 
 ### Interface Overview
 
@@ -133,7 +143,7 @@ For complete cross-platform compatibility, the application provides multiple way
 - **Ctrl+-/=** - Minus/plus key scrolling
 - **F1/F2** - Function key scrolling
 
-> **Note**: On macOS, some key combinations may be intercepted by the terminal. The application provides multiple alternatives to ensure reliable operation across all platforms.
+> **Note**: On macOS and some Linux terminals, complex modifier combinations like Alt+Shift+Key may be intercepted by the terminal or system. The application provides multiple alternatives (Ctrl+Shift+Key, function keys, and slash commands) to ensure reliable operation across all platforms and terminal emulators.
 
 ## Configuration
 
@@ -192,11 +202,40 @@ claudecli --api-key <API_KEY> \
 
 ### Interactive Color Selection
 
-Press **Alt+Shift+C** while the application is running to open the color configuration dialog, or use the `/colors` command:
+Open the color configuration dialog in any of these ways:
+- Press **Ctrl+Shift+C** (primary, most reliable)
+- Press **F3** (function key alternative)
+- Press **Ctrl+Alt+C** (alternative modifier combination)
+- Type `/colors` and press Enter or Space
+- Press **Alt+Shift+C** (legacy, may not work in all terminals)
 - **Left/Right** - Navigate between color type options
 - **Up/Down** - Navigate between color choices
 - **Enter** - Apply selected colors
 - **Escape** - Cancel and return to main interface
+
+### Color Profiles
+
+The application includes built-in color profiles for quick theme switching:
+
+Open the color profile dialog in any of these ways:
+- Press **Ctrl+Shift+P** (primary, most reliable)
+- Press **F4** (function key alternative)
+- Press **Ctrl+Alt+P** (alternative modifier combination)
+- Type `/profiles` and press Enter or Space
+- Press **Alt+Shift+P** (legacy, may not work in all terminals)
+
+**Profile Dialog Navigation:**
+- **Up/Down** - Navigate between available profiles
+- **Enter** - Apply selected profile
+- **Escape** - Cancel and return to main interface
+
+**Built-in Profiles:**
+- **Default** - Professional black background with blue/green accents
+- **Matrix** - Green-on-black matrix-style theme
+- **Ocean** - Blue-themed color scheme
+- **Sunset** - Warm orange and red theme
+
+> **Note**: Profile changes are applied immediately and saved to your configuration file for persistence across sessions.
 
 ### Color Theme Examples
 
