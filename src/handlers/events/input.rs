@@ -37,6 +37,12 @@ pub async fn handle_enter_key(
         app.color_dialog_option = 0;
         app.input.clear();
         app.cursor_position = 0;
+    } else if app.input == "/profiles" || app.input == "/profile" {
+        app.show_profile_dialog = true;
+        app.profile_dialog_selection = 0;
+        app.profile_dialog_scroll_offset = 0;
+        app.input.clear();
+        app.cursor_position = 0;
     } else if modifiers.contains(KeyModifiers::SHIFT) || modifiers.contains(KeyModifiers::ALT) {
         if SHIFT_ENTER_SENDS && !app.input.is_empty() {
             send_message(app, tx).await?;
@@ -167,6 +173,12 @@ pub fn handle_char_input(app: &mut AppState, c: char) {
         app.show_color_dialog = true;
         app.color_dialog_selection = 0;
         app.color_dialog_option = 0;
+        app.input.clear();
+        app.cursor_position = 0;
+    } else if (app.input == "/profiles" || app.input == "/profile") && c == ' ' {
+        app.show_profile_dialog = true;
+        app.profile_dialog_selection = 0;
+        app.profile_dialog_scroll_offset = 0;
         app.input.clear();
         app.cursor_position = 0;
     } else {
