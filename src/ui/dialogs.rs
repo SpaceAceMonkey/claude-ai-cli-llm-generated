@@ -54,6 +54,21 @@ fn draw_save_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
         height: size.height / 2,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     // Split the dialog area to reserve space for filename input
@@ -99,6 +114,21 @@ fn draw_load_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
         height: size.height / 2,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     let file_items: Vec<ListItem> = app.available_files.iter().map(|f| ListItem::new(f.as_str())).collect();
@@ -121,6 +151,21 @@ fn draw_create_dir_dialog(f: &mut Frame, app: &AppState, size: Rect) {
         height: 5,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     let create_dialog = Paragraph::new(format!("Enter directory name: {}", app.new_dir_name))
@@ -170,6 +215,21 @@ fn draw_exit_dialog(f: &mut Frame, app: &AppState, size: Rect) {
         height: 6,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     let exit_dialog = Paragraph::new("Exit the program?\n\nUse ↑↓ or Y/N to select, Enter to confirm.")
@@ -224,6 +284,21 @@ fn draw_error_dialog(f: &mut Frame, app: &AppState, size: Rect) {
         height: size.height / 4,
     };
     
+    // Create outer border area
+    let outer_border_area = Rect {
+        x: error_area.x.saturating_sub(1),
+        y: error_area.y.saturating_sub(1),
+        width: error_area.width + 2,
+        height: error_area.height + 2,
+    };
+    
+    // Render outer border
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    f.render_widget(outer_border, outer_border_area);
+    
     f.render_widget(Clear, error_area);
     
     let error_dialog = Paragraph::new(app.error_message.clone())
@@ -245,6 +320,21 @@ fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
         height: (size.height * 2) / 3,
     };
     
+    // Create outer border area (slightly larger than dialog)
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border for visual separation
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
     // Clone the colors to avoid borrowing issues
@@ -380,6 +470,101 @@ fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
     
     // Instructions
     let instructions = Paragraph::new("←→: Select color type | ↑↓: Select color | Enter: Apply | Esc: Cancel")
+<<<<<<< Updated upstream
+=======
+        .block(create_enhanced_dialog_block("Instructions"))
+        .style(Style::default().bg(Color::Black).fg(Color::White));
+    
+    f.render_widget(instructions, dialog_layout[2]);
+}
+
+fn draw_profile_dialog(f: &mut Frame, app: &AppState, size: Rect) {
+    // Get the number of profiles to calculate content-based size
+    let profiles = crate::config::get_all_profiles();
+    let profile_count = profiles.len();
+    
+    // Calculate dynamic dialog size based on content
+    let min_width = 50;  // Minimum width for profile names and descriptions
+    let min_height = 10; // Title (3) + Min content (4) + Instructions (3)
+    
+    // Calculate preferred size based on profile count
+    let preferred_width = std::cmp::max(min_width, 70);
+    let preferred_height = std::cmp::max(min_height, 6 + profile_count); // Title + profiles + instructions + padding
+    
+    // Apply 90% maximum constraint
+    let max_width = (size.width * 9) / 10;
+    let max_height = (size.height * 9) / 10;
+    
+    // Use the smaller of preferred or maximum size
+    let dialog_width = std::cmp::min(preferred_width, max_width);
+    let dialog_height = std::cmp::min(preferred_height as u16, max_height);
+    
+    // Center the dialog
+    let dialog_area = Rect {
+        x: (size.width.saturating_sub(dialog_width)) / 2,
+        y: (size.height.saturating_sub(dialog_height)) / 2,
+        width: dialog_width,
+        height: dialog_height,
+    };
+    
+    // Create outer border area for visual separation
+    let outer_border_area = Rect {
+        x: dialog_area.x.saturating_sub(1),
+        y: dialog_area.y.saturating_sub(1),
+        width: dialog_area.width + 2,
+        height: dialog_area.height + 2,
+    };
+    
+    // Render outer border
+    let outer_border = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::White))
+        .style(Style::default().bg(Color::Black));
+    f.render_widget(outer_border, outer_border_area);
+    
+    f.render_widget(Clear, dialog_area);
+    
+    // Create layout for the dialog
+    let dialog_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // Title
+            Constraint::Min(1),     // Profile list
+            Constraint::Length(3),  // Instructions
+        ])
+        .split(dialog_area);
+    
+    // Title
+    let title = Paragraph::new("Color Profiles")
+        .block(create_enhanced_dialog_block("Color Profiles"))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(title, dialog_layout[0]);
+    
+    // Profile list
+    let profile_area = dialog_layout[1];
+    let profiles: Vec<_> = app.available_profiles.values().collect();
+    
+    // Calculate visible area for scrolling
+    let visible_height = profile_area.height.saturating_sub(2) as usize; // Account for borders
+    let scroll_offset = app.profile_dialog_scroll_offset;
+    
+    let mut profile_items = Vec::new();
+    for (i, profile) in profiles.iter().enumerate() {
+        if i >= scroll_offset && i < scroll_offset + visible_height {
+            let style = if i == app.profile_dialog_selection {
+                Style::default().fg(Color::Yellow).bg(Color::Blue)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            
+            let display_text = format!("{} - {}", profile.name, profile.description);
+            profile_items.push(ListItem::new(display_text).style(style));
+        }
+    }
+    
+    let profile_list = List::new(profile_items)
+>>>>>>> Stashed changes
         .block(Block::default()
             .borders(Borders::ALL)
             .title("Instructions")
