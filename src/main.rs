@@ -91,28 +91,57 @@ async fn main() -> Result<()> {
                (!is_user_message && SCROLL_ON_API_RESPONSE) {
                 app.auto_scroll = true;
             }
+            
+            // Mark for redraw since messages changed
+            app.mark_dirty();
         }
 
-        // Draw UI
-        terminal.draw(|f| {
-            let size = f.size();
-            let layout = create_main_layout(size);
-            draw_ui(f, &mut app, &layout);
-        })?;
+        // Check if waiting state changed (for progress animation)
+        let needs_animation_update = app.waiting;
+        if needs_animation_update {
+            // Slow down progress animation - only increment every 4th iteration
+            static mut FRAME_COUNTER: u32 = 0;
+            unsafe {
+                FRAME_COUNTER += 1;
+                if FRAME_COUNTER % 4 == 0 {
+                    app.progress_i += 1;
+                    app.mark_dirty(); // Mark for redraw when progress changes
+                }
+            }
+        }
+
+        // Only draw UI if something has changed
+        if app.take_dirty() {
+            terminal.draw(|f| {
+                let size = f.size();
+                let layout = create_main_layout(size);
+                draw_ui(f, &mut app, &layout);
+            })?;
+        }
 
         // Event handling
         if event::poll(Duration::from_millis(50))? {
-            if let Event::Key(key_event) = event::read()? {
-                let should_exit = handlers::events::handle_key_event(
-                    &mut app,
-                    key_event,
-                    &tx,
-                    (terminal.size()?.width, terminal.size()?.height),
-                ).await?;
-                
-                if should_exit {
-                    break;
+            match event::read()? {
+                Event::Key(key_event) => {
+                    let should_exit = handlers::events::handle_key_event(
+                        &mut app,
+                        key_event,
+                        &tx,
+                        (terminal.size()?.width, terminal.size()?.height),
+                    ).await?;
+                    
+                    // Mark for redraw after handling key events
+                    app.mark_dirty();
+                    
+                    if should_exit {
+                        break;
+                    }
                 }
+                Event::Resize(_, _) => {
+                    // Terminal was resized, need to redraw
+                    app.mark_dirty();
+                }
+                _ => {}
             }
         }
 
@@ -139,19 +168,17 @@ async fn main() -> Result<()> {
                     app.error_message = error_msg;
                 }
             }
+            
+            // Mark for redraw after API response
+            app.mark_dirty();
         }
 
-        // Update progress animation for waiting state
+        // Add a small delay to prevent excessive CPU usage
         if app.waiting {
-            // Slow down progress animation - only increment every 4th iteration
-            static mut FRAME_COUNTER: u32 = 0;
-            unsafe {
-                FRAME_COUNTER += 1;
-                if FRAME_COUNTER % 4 == 0 {
-                    app.progress_i += 1;
-                }
-            }
             tokio::time::sleep(Duration::from_millis(10)).await;
+        } else {
+            // Longer delay when not waiting to reduce CPU usage
+            tokio::time::sleep(Duration::from_millis(16)).await; // ~60 FPS max
         }
     }
 

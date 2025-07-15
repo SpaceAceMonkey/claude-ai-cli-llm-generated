@@ -55,6 +55,9 @@ pub struct AppState {
     pub profile_dialog_selection: usize,
     pub profile_dialog_scroll_offset: usize,
     pub available_profiles: HashMap<String, crate::config::ColorProfile>,
+    
+    // Rendering control
+    pub needs_redraw: bool,
 }
 
 impl AppState {
@@ -113,6 +116,9 @@ impl AppState {
             profile_dialog_selection: 0,
             profile_dialog_scroll_offset: 0,
             available_profiles: crate::config::get_all_profiles(),
+            
+            // Rendering control
+            needs_redraw: true, // Initial render needed
         })
     }
     
@@ -121,10 +127,23 @@ impl AppState {
         self.highlight_cache.clear();
     }
     
+    /// Mark the UI as needing a redraw
+    pub fn mark_dirty(&mut self) {
+        self.needs_redraw = true;
+    }
+    
+    /// Check if the UI needs redrawing and clear the flag
+    pub fn take_dirty(&mut self) -> bool {
+        let dirty = self.needs_redraw;
+        self.needs_redraw = false;
+        dirty
+    }
+    
     /// Show error dialog for config loading issues
     pub fn show_config_error(&mut self, error_msg: String) {
         self.show_error_dialog = true;
         self.error_message = error_msg;
+        self.mark_dirty();
     }
     
     /// Save current color configuration to disk
