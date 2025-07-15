@@ -35,6 +35,11 @@ pub fn draw_dialogs(f: &mut Frame, app: &mut AppState, size: Rect) {
         draw_color_dialog(f, app, size);
     }
 
+    // Color profile dialog overlay
+    if app.show_profile_dialog {
+        draw_profile_dialog(f, app, size);
+    }
+
     // Exit confirmation dialog overlay (render last so it appears on top)
     if app.show_exit_dialog {
         draw_exit_dialog(f, app, size);
@@ -380,6 +385,78 @@ fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
     
     // Instructions
     let instructions = Paragraph::new("←→: Select color type | ↑↓: Select color | Enter: Apply | Esc: Cancel")
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Instructions")
+            .title_style(Style::default().fg(Color::Green)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(instructions, dialog_layout[2]);
+}
+
+fn draw_profile_dialog(f: &mut Frame, app: &AppState, size: Rect) {
+    let dialog_area = Rect {
+        x: size.width / 6,
+        y: size.height / 6,
+        width: (size.width * 2) / 3,
+        height: (size.height * 2) / 3,
+    };
+    
+    f.render_widget(Clear, dialog_area);
+    
+    // Create layout for the dialog
+    let dialog_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // Title
+            Constraint::Min(1),     // Profile list
+            Constraint::Length(3),  // Instructions
+        ])
+        .split(dialog_area);
+    
+    // Title
+    let title = Paragraph::new("Color Profiles")
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Color Profiles")
+            .title_style(Style::default().fg(Color::Cyan)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(title, dialog_layout[0]);
+    
+    // Profile list
+    let profile_area = dialog_layout[1];
+    let profiles: Vec<_> = app.available_profiles.values().collect();
+    
+    // Calculate visible area for scrolling
+    let visible_height = profile_area.height.saturating_sub(2) as usize; // Account for borders
+    let scroll_offset = app.profile_dialog_scroll_offset;
+    
+    let mut profile_items = Vec::new();
+    for (i, profile) in profiles.iter().enumerate() {
+        if i >= scroll_offset && i < scroll_offset + visible_height {
+            let style = if i == app.profile_dialog_selection {
+                Style::default().fg(Color::Yellow).bg(Color::Blue)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            
+            let display_text = format!("{} - {}", profile.name, profile.description);
+            profile_items.push(ListItem::new(display_text).style(style));
+        }
+    }
+    
+    let profile_list = List::new(profile_items)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Available Profiles")
+            .title_style(Style::default().fg(Color::Green)))
+        .style(Style::default().bg(Color::Black));
+    
+    f.render_widget(profile_list, profile_area);
+    
+    // Instructions
+    let instructions = Paragraph::new("↑↓: Select profile | Enter: Apply | S: Save current as custom | Esc: Cancel")
         .block(Block::default()
             .borders(Borders::ALL)
             .title("Instructions")

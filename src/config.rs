@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use std::path::PathBuf;
 use std::fmt;
+use std::collections::HashMap;
+use base64::prelude::*;
 
 /// Feature flags and configuration constants
 pub const SCROLL_ON_USER_INPUT: bool = true;
@@ -14,6 +16,28 @@ pub const SHIFT_ENTER_SENDS: bool = false;
 pub const SHOW_DEBUG_MESSAGES: bool = false;
 
 pub const PROGRESS_FRAMES: [&str; 5] = ["    ", ".   ", "..  ", "... ", "...."];
+
+/// Color profile structure that contains a complete color configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ColorProfile {
+    pub name: String,
+    pub description: String,
+    pub config: ColorConfig,
+}
+
+impl ColorProfile {
+    pub fn new(name: String, description: String, config: ColorConfig) -> Self {
+        Self { name, description, config }
+    }
+}
+
+/// Embedded color profiles encoded as Base64 strings
+const EMBEDDED_PROFILES: &[(&str, &str)] = &[
+    ("default", "eyJuYW1lIjoiRGVmYXVsdCIsImRlc2NyaXB0aW9uIjoiRGVmYXVsdCBjb2xvciBzY2hlbWUiLCJjb25maWciOnsiYmFja2dyb3VuZCI6IkJsYWNrIiwiYm9yZGVyIjoiV2hpdGUiLCJ0ZXh0IjoiV2hpdGUiLCJ1c2VyX25hbWUiOiJCcmlnaHRCbHVlIiwiYXNzaXN0YW50X25hbWUiOiJCcmlnaHRHcmVlbiIsImJvcmRlcl9zdHlsZSI6IkFzY2lpIn19"),
+    ("matrix", "eyJuYW1lIjoiTWF0cml4IiwiZGVzY3JpcHRpb24iOiJHcmVlbi1vbi1ibGFjayBtYXRyaXggc3R5bGUiLCJjb25maWciOnsiYmFja2dyb3VuZCI6IkJsYWNrIiwiYm9yZGVyIjoiR3JlZW4iLCJ0ZXh0IjoiQnJpZ2h0R3JlZW4iLCJ1c2VyX25hbWUiOiJCcmlnaHRXaGl0ZSIsImFzc2lzdGFudF9uYW1lIjoiQnJpZ2h0R3JlZW4iLCJib3JkZXJfc3R5bGUiOiJBc2NpaSJ9fQ=="),
+    ("ocean", "eyJuYW1lIjoiT2NlYW4iLCJkZXNjcmlwdGlvbiI6IkJsdWUgYW5kIGN5YW4gb2NlYW4gdGhlbWUiLCJjb25maWciOnsiYmFja2dyb3VuZCI6IkJsYWNrIiwiYm9yZGVyIjoiQ3lhbiIsInRleHQiOiJCcmlnaHRXaGl0ZSIsInVzZXJfbmFtZSI6IkJyaWdodEJsdWUiLCJhc3Npc3RhbnRfbmFtZSI6IkJyaWdodEN5YW4iLCJib3JkZXJfc3R5bGUiOiJSb3VuZGVkIn19"),
+    ("sunset", "eyJuYW1lIjoiU3Vuc2V0IiwiZGVzY3JpcHRpb24iOiJXYXJtIHN1bnNldCBjb2xvcnMiLCJjb25maWciOnsiYmFja2dyb3VuZCI6IkJsYWNrIiwiYm9yZGVyIjoiWWVsbG93IiwidGV4dCI6IkJyaWdodFdoaXRlIiwidXNlcl9uYW1lIjoiQnJpZ2h0UmVkIiwiYXNzaXN0YW50X25hbWUiOiJCcmlnaHRZZWxsb3ciLCJib3JkZXJfc3R5bGUiOiJUaGljayJ9fQ=="),
+];
 
 /// Available border styles
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash, ValueEnum)]
@@ -335,10 +359,79 @@ pub fn load_color_config_with_error_info() -> (ColorConfig, Option<String>) {
     }
 }
 
-// Helper function for tests
-#[cfg(test)]
-pub fn default_test_colors() -> ColorConfig {
-    ColorConfig::default()
+/// Load embedded color profiles
+pub fn load_embedded_profiles() -> Result<HashMap<String, ColorProfile>, String> {
+    let mut profiles = HashMap::new();
+    
+    for (key, base64_data) in EMBEDDED_PROFILES {
+        let decoded = BASE64_STANDARD.decode(base64_data)
+            .map_err(|e| format!("Failed to decode profile {}: {}", key, e))?;
+        
+        let profile: ColorProfile = serde_json::from_slice(&decoded)
+            .map_err(|e| format!("Failed to parse profile {}: {}", key, e))?;
+        
+        profiles.insert(key.to_string(), profile);
+    }
+    
+    Ok(profiles)
+}
+
+/// Get the path to the color profiles directory
+pub fn get_profiles_path() -> PathBuf {
+    let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+    path.push("claudecli");
+    path.push("profiles");
+    std::fs::create_dir_all(&path).ok(); // Create directory if it doesn't exist
+    path
+}
+
+/// Save a custom color profile
+pub fn save_color_profile(profile: &ColorProfile) -> anyhow::Result<()> {
+    let profiles_path = get_profiles_path();
+    let filename = format!("{}.json", profile.name.replace(' ', "_").to_lowercase());
+    let profile_path = profiles_path.join(filename);
+    
+    let json = serde_json::to_string_pretty(profile)?;
+    std::fs::write(&profile_path, json)?;
+    Ok(())
+}
+
+/// Load custom color profiles from disk
+pub fn load_custom_profiles() -> HashMap<String, ColorProfile> {
+    let mut profiles = HashMap::new();
+    let profiles_path = get_profiles_path();
+    
+    if let Ok(entries) = std::fs::read_dir(&profiles_path) {
+        for entry in entries.flatten() {
+            if let Some(extension) = entry.path().extension() {
+                if extension == "json" {
+                    if let Ok(contents) = std::fs::read_to_string(entry.path()) {
+                        if let Ok(profile) = serde_json::from_str::<ColorProfile>(&contents) {
+                            profiles.insert(profile.name.clone(), profile);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    profiles
+}
+
+/// Get all available color profiles (embedded + custom)
+pub fn get_all_profiles() -> HashMap<String, ColorProfile> {
+    let mut all_profiles = HashMap::new();
+    
+    // Load embedded profiles
+    if let Ok(embedded) = load_embedded_profiles() {
+        all_profiles.extend(embedded);
+    }
+    
+    // Load custom profiles (these can override embedded ones)
+    let custom = load_custom_profiles();
+    all_profiles.extend(custom);
+    
+    all_profiles
 }
 
 /// Get the default color configuration for testing
