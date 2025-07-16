@@ -5,7 +5,6 @@ use ratatui::{
     style::{Color, Style},
 };
 use crate::app::AppState;
-use crate::config::AnsiColor;
 
 /// Helper function to create a block with enhanced borders for dialog distinction
 fn create_enhanced_dialog_block(title: &str) -> Block<'static> {
@@ -328,23 +327,65 @@ fn draw_error_dialog(f: &mut Frame, app: &AppState, size: Rect) {
 }
 
 fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
-    // Calculate dynamic dialog size based on content
-    // Content: 5 color options (left side) + available colors (right side)
-    let min_width = 60;  // Minimum width for comfortable reading
-    let min_height = 12; // Title (3) + Min content (6) + Instructions (3)
+    // Calculate dynamic dialog size based on actual content requirements
+    let background_color = app.colors.background;
+    let border_color = app.colors.border;
+    let text_color = app.colors.text;
+    let user_name_color = app.colors.user_name;
+    let assistant_name_color = app.colors.assistant_name;
     
-    // Calculate preferred size based on actual content requirements
-    let preferred_width = std::cmp::max(min_width, 80);
-    // Color dialog needs: Title (3) + Color options (5) + Instructions (3) + padding (2-3)
-    let preferred_height = std::cmp::max(min_height, 14); // More reasonable height
+    let color_options = [
+        ("Background", background_color),
+        ("Border", border_color),
+        ("Text", text_color),
+        ("User Name", user_name_color),
+        ("Assistant Name", assistant_name_color),
+    ];
+    
+    let available_colors = crate::config::AnsiColor::all();
+    
+    // Calculate required width based on actual content
+    let title_text = "Color Configuration";
+    let instructions_text = "←→: Select color type | ↑↓: Select color | Enter: Apply | Esc: Cancel";
+    
+    // Find longest color option text (left pane)
+    let max_color_option_width = color_options.iter()
+        .map(|(name, color)| format!("{}: {}", name, color.name()).len())
+        .max()
+        .unwrap_or(0);
+    
+    // Find longest available color name (right pane)
+    let max_available_color_width = available_colors.iter()
+        .map(|color| color.name().len())
+        .max()
+        .unwrap_or(0);
+    
+    // Calculate actual required width with minimal padding
+    let left_pane_width = max_color_option_width + 4; // content + minimal padding
+    let right_pane_width = max_available_color_width + 4; // content + minimal padding
+    let total_content_width = left_pane_width + right_pane_width + 4; // + separator and borders
+    
+    // Calculate minimum width to fit all content
+    let content_based_width = std::cmp::max(
+        std::cmp::max(title_text.len(), instructions_text.len()) + 4, // titles + minimal padding
+        total_content_width
+    );
+    
+    // Calculate required height: consider both panes for scrolling
+    let left_pane_height = color_options.len();
+    let right_pane_height = available_colors.len();
+    let max_content_height = std::cmp::max(left_pane_height, right_pane_height);
+    
+    // Height: title (3) + max content height + instructions (3) + borders (2)
+    let content_based_height = 3 + max_content_height + 3 + 2;
     
     // Apply 90% maximum constraint
     let max_width = (size.width * 9) / 10;
     let max_height = (size.height * 9) / 10;
     
-    // Use the smaller of preferred or maximum size
-    let dialog_width = std::cmp::min(preferred_width, max_width);
-    let dialog_height = std::cmp::min(preferred_height, max_height);
+    // Use content-based size, but don't exceed 90% maximum
+    let dialog_width = std::cmp::min(content_based_width as u16, max_width);
+    let dialog_height = std::cmp::min(content_based_height as u16, max_height);
     
     // Center the dialog
     let dialog_area = Rect {
@@ -371,22 +412,7 @@ fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
     f.render_widget(outer_border, outer_border_area);
     f.render_widget(Clear, dialog_area);
     
-    // Clone the colors to avoid borrowing issues
-    let background_color = app.colors.background;
-    let border_color = app.colors.border;
-    let text_color = app.colors.text;
-    let user_name_color = app.colors.user_name;
-    let assistant_name_color = app.colors.assistant_name;
-    
-    let color_options = [
-        ("Background", background_color),
-        ("Border", border_color),
-        ("Text", text_color),
-        ("User Name", user_name_color),
-        ("Assistant Name", assistant_name_color),
-    ];
-    
-    let available_colors = AnsiColor::all();
+    let available_colors = crate::config::AnsiColor::all();
     
     // Create layout for the dialog
     let dialog_layout = Layout::default()
@@ -510,25 +536,37 @@ fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
 }
 
 fn draw_profile_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
-    // Get the number of profiles to calculate content-based size
+    // Get profiles to calculate content-based size
     let profiles = crate::config::get_all_profiles();
-    let profile_count = profiles.len();
+    let mut profile_vec: Vec<_> = profiles.values().collect();
+    profile_vec.sort_by(|a, b| a.name.cmp(&b.name));
     
-    // Calculate dynamic dialog size based on content
-    let min_width = 50;  // Minimum width for profile names and descriptions
-    let min_height = 10; // Title (3) + Min content (4) + Instructions (3)
+    // Calculate required width based on actual content
+    let title_text = "Color Profiles";
+    let instructions_text = "↑↓: Select profile | Enter: Apply | S: Save current as custom | Esc: Cancel";
     
-    // Calculate preferred size based on profile count
-    let preferred_width = std::cmp::max(min_width, 70);
-    let preferred_height = std::cmp::max(min_height, 6 + profile_count); // Title + profiles + instructions + padding
+    // Find longest profile display text
+    let max_profile_text_width = profile_vec.iter()
+        .map(|profile| format!("{} - {}", profile.name, profile.description).len())
+        .max()
+        .unwrap_or(0);
+    
+    // Calculate minimum width to fit content with minimal padding
+    let content_based_width = std::cmp::max(
+        std::cmp::max(title_text.len(), instructions_text.len()) + 4, // titles + minimal padding
+        max_profile_text_width + 6 // profile text + borders + minimal padding
+    );
+    
+    // Calculate required height: title (3) + all profiles (if they fit) + instructions (3) + borders
+    let ideal_height_for_all_profiles = 3 + profile_vec.len() + 3 + 2; // +2 for borders and padding
     
     // Apply 90% maximum constraint
     let max_width = (size.width * 9) / 10;
     let max_height = (size.height * 9) / 10;
     
-    // Use the smaller of preferred or maximum size
-    let dialog_width = std::cmp::min(preferred_width, max_width);
-    let dialog_height = std::cmp::min(preferred_height as u16, max_height);
+    // Use content-based size, but don't exceed 90% maximum
+    let dialog_width = std::cmp::min(content_based_width as u16, max_width);
+    let dialog_height = std::cmp::min(ideal_height_for_all_profiles as u16, max_height);
     
     // Center the dialog
     let dialog_area = Rect {
@@ -582,12 +620,9 @@ fn draw_profile_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
     crate::handlers::events::update_profile_dialog_scroll_with_height(app, visible_height);
     
     let scroll_offset = app.profile_dialog_scroll_offset;
-    let mut profiles: Vec<_> = app.available_profiles.values().collect();
-    // Sort profiles by name for consistent ordering
-    profiles.sort_by(|a, b| a.name.cmp(&b.name));
     
     let mut profile_items = Vec::new();
-    for (i, profile) in profiles.iter().enumerate() {
+    for (i, profile) in profile_vec.iter().enumerate() {
         if i >= scroll_offset && i < scroll_offset + visible_height {
             let style = if i == app.profile_dialog_selection {
                 Style::default().fg(Color::Yellow).bg(Color::Blue)

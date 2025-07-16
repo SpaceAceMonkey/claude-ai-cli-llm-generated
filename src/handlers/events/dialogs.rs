@@ -414,9 +414,7 @@ pub fn handle_profile_dialog(app: &mut AppState, code: KeyCode) {
                     }
                 }
             }
-            app.show_profile_dialog = false;
-            app.profile_dialog_selection = 0;
-            app.profile_dialog_scroll_offset = 0;
+            // Note: Dialog remains open like the color dialog does
         }
         KeyCode::Esc => {
             // Cancel - close dialog
