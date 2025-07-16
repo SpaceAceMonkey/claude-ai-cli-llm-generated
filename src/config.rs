@@ -15,6 +15,12 @@ pub const SCROLL_ON_API_RESPONSE: bool = true;
 pub const SHIFT_ENTER_SENDS: bool = false;
 pub const SHOW_DEBUG_MESSAGES: bool = false;
 
+/// Terminal size constants
+pub const MIN_TERMINAL_WIDTH: u16 = 10;
+pub const MIN_TERMINAL_HEIGHT: u16 = 10;
+pub const MIN_MESSAGE_DISPLAY_WIDTH: u16 = 20;
+pub const MIN_MESSAGE_DISPLAY_HEIGHT: u16 = 3;
+
 pub const PROGRESS_FRAMES: [&str; 5] = ["    ", ".   ", "..  ", "... ", "...."];
 
 /// Color profile structure that contains a complete color configuration

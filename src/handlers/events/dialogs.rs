@@ -465,6 +465,12 @@ pub fn update_profile_dialog_scroll_with_height(app: &mut AppState, visible_heig
 fn update_profile_dialog_scroll(app: &mut AppState, visible_height: usize) {
     let total_profiles = app.available_profiles.len();
     
+    // Safety check: if visible_height is 0, we can't display anything
+    if visible_height == 0 {
+        app.profile_dialog_scroll_offset = 0;
+        return;
+    }
+    
     // If we have fewer profiles than visible height, no scrolling needed
     if total_profiles <= visible_height {
         app.profile_dialog_scroll_offset = 0;
@@ -478,6 +484,7 @@ fn update_profile_dialog_scroll(app: &mut AppState, visible_height: usize) {
     if current_selection < *scroll_offset {
         *scroll_offset = current_selection;
     } else if current_selection >= *scroll_offset + visible_height {
+        // Safe calculation: visible_height is guaranteed > 0 at this point
         *scroll_offset = current_selection.saturating_sub(visible_height - 1);
     }
     

@@ -575,8 +575,8 @@ fn draw_profile_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
     // Profile list
     let profile_area = dialog_layout[1];
     
-    // Calculate visible area for scrolling - use actual available height
-    let visible_height = profile_area.height.saturating_sub(2) as usize; // Subtract 2 for borders
+    // Calculate visible area for scrolling - use actual available height with safety minimum
+    let visible_height = std::cmp::max(1, profile_area.height.saturating_sub(2) as usize); // Minimum 1 line
     
     // Update scroll offset to keep selection visible
     crate::handlers::events::update_profile_dialog_scroll_with_height(app, visible_height);
