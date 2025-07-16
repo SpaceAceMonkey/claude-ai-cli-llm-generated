@@ -360,14 +360,20 @@ fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
         .max()
         .unwrap_or(0);
     
-    // Calculate actual required width with minimal padding
-    let left_pane_width = max_color_option_width + 4; // content + minimal padding
-    let right_pane_width = max_available_color_width + 4; // content + minimal padding
-    let total_content_width = left_pane_width + right_pane_width + 4; // + separator and borders
+    // Calculate exact required width with absolute minimum padding
+    // Left pane: content + 2 (borders) + 2 (minimal padding)
+    let left_pane_width = max_color_option_width + 4;
+    // Right pane: content + 2 (borders) + 2 (minimal padding)  
+    let right_pane_width = max_available_color_width + 4;
+    // Total: left + right + 1 (separator between panes)
+    let total_content_width = left_pane_width + right_pane_width + 1;
     
     // Calculate minimum width to fit all content
+    let title_width = title_text.len() + 4; // title + borders + minimal padding
+    let instructions_width = instructions_text.len() + 4; // instructions + borders + minimal padding
+    
     let content_based_width = std::cmp::max(
-        std::cmp::max(title_text.len(), instructions_text.len()) + 4, // titles + minimal padding
+        std::cmp::max(title_width, instructions_width),
         total_content_width
     );
     
@@ -551,10 +557,14 @@ fn draw_profile_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
         .max()
         .unwrap_or(0);
     
-    // Calculate minimum width to fit content with minimal padding
+    // Calculate minimum width to fit content with absolute minimum padding
+    let title_width = title_text.len() + 4; // title + borders + minimal padding
+    let instructions_width = instructions_text.len() + 4; // instructions + borders + minimal padding
+    let profile_content_width = max_profile_text_width + 4; // profile text + borders + minimal padding
+    
     let content_based_width = std::cmp::max(
-        std::cmp::max(title_text.len(), instructions_text.len()) + 4, // titles + minimal padding
-        max_profile_text_width + 6 // profile text + borders + minimal padding
+        std::cmp::max(title_width, instructions_width),
+        profile_content_width
     );
     
     // Calculate required height: title (3) + all profiles (if they fit) + instructions (3) + borders
