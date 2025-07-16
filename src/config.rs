@@ -15,6 +15,12 @@ pub const SCROLL_ON_API_RESPONSE: bool = true;
 pub const SHIFT_ENTER_SENDS: bool = false;
 pub const SHOW_DEBUG_MESSAGES: bool = false;
 
+/// Terminal size constants
+pub const MIN_TERMINAL_WIDTH: u16 = 10;
+pub const MIN_TERMINAL_HEIGHT: u16 = 10;
+pub const MIN_MESSAGE_DISPLAY_WIDTH: u16 = 20;
+pub const MIN_MESSAGE_DISPLAY_HEIGHT: u16 = 3;
+
 pub const PROGRESS_FRAMES: [&str; 5] = ["    ", ".   ", "..  ", "... ", "...."];
 
 /// Color profile structure that contains a complete color configuration
@@ -37,6 +43,11 @@ const EMBEDDED_PROFILES: &[(&str, &str)] = &[
     ("matrix", "eyJuYW1lIjoiTWF0cml4IiwiZGVzY3JpcHRpb24iOiJHcmVlbi1vbi1ibGFjayBtYXRyaXggc3R5bGUiLCJjb25maWciOnsiYmFja2dyb3VuZCI6IkJsYWNrIiwiYm9yZGVyIjoiR3JlZW4iLCJ0ZXh0IjoiQnJpZ2h0R3JlZW4iLCJ1c2VyX25hbWUiOiJCcmlnaHRXaGl0ZSIsImFzc2lzdGFudF9uYW1lIjoiQnJpZ2h0R3JlZW4iLCJib3JkZXJfc3R5bGUiOiJBc2NpaSJ9fQ=="),
     ("ocean", "eyJuYW1lIjoiT2NlYW4iLCJkZXNjcmlwdGlvbiI6IkJsdWUgYW5kIGN5YW4gb2NlYW4gdGhlbWUiLCJjb25maWciOnsiYmFja2dyb3VuZCI6IkJsYWNrIiwiYm9yZGVyIjoiQ3lhbiIsInRleHQiOiJCcmlnaHRXaGl0ZSIsInVzZXJfbmFtZSI6IkJyaWdodEJsdWUiLCJhc3Npc3RhbnRfbmFtZSI6IkJyaWdodEN5YW4iLCJib3JkZXJfc3R5bGUiOiJSb3VuZGVkIn19"),
     ("sunset", "eyJuYW1lIjoiU3Vuc2V0IiwiZGVzY3JpcHRpb24iOiJXYXJtIHN1bnNldCBjb2xvcnMiLCJjb25maWciOnsiYmFja2dyb3VuZCI6IkJsYWNrIiwiYm9yZGVyIjoiWWVsbG93IiwidGV4dCI6IkJyaWdodFdoaXRlIiwidXNlcl9uYW1lIjoiQnJpZ2h0UmVkIiwiYXNzaXN0YW50X25hbWUiOiJCcmlnaHRZZWxsb3ciLCJib3JkZXJfc3R5bGUiOiJUaGljayJ9fQ=="),
+    ("forest", "eyJuYW1lIjoiRm9yZXN0IiwiZGVzY3JpcHRpb24iOiJHcmVlbiBmb3Jlc3QgdGhlbWUiLCJjb25maWciOnsiYmFja2dyb3VuZCI6IkJsYWNrIiwiYm9yZGVyIjoiR3JlZW4iLCJ0ZXh0IjoiQnJpZ2h0R3JlZW4iLCJ1c2VyX25hbWUiOiJCcmlnaHRXaGl0ZSIsImFzc2lzdGFudF9uYW1lIjoiWWVsbG93IiwiYm9yZGVyX3N0eWxlIjoiQXNjaWkifX0="),
+    ("purple", "eyJuYW1lIjoiUHVycGxlIiwiZGVzY3JpcHRpb24iOiJQdXJwbGUgbWFnaWMgdGhlbWUiLCJjb25maWciOnsiYmFja2dyb3VuZCI6IkJsYWNrIiwiYm9yZGVyIjoiTWFnZW50YSIsInRleHQiOiJCcmlnaHRXaGl0ZSIsInVzZXJfbmFtZSI6IkJyaWdodE1hZ2VudGEiLCJhc3Npc3RhbnRfbmFtZSI6IkJyaWdodEN5YW4iLCJib3JkZXJfc3R5bGUiOiJSb3VuZGVkIn19"),
+    ("fire", "eyJuYW1lIjoiRmlyZSIsImRlc2NyaXB0aW9uIjoiRmlyZSBhbmQgZmxhbWVzIHRoZW1lIiwiY29uZmlnIjp7ImJhY2tncm91bmQiOiJCbGFjayIsImJvcmRlciI6IlJlZCIsInRleHQiOiJCcmlnaHRXaGl0ZSIsInVzZXJfbmFtZSI6IkJyaWdodFJlZCIsImFzc2lzdGFudF9uYW1lIjoiQnJpZ2h0WWVsbG93IiwiYm9yZGVyX3N0eWxlIjoiVGhpY2sifX0="),
+    ("ice", "eyJuYW1lIjoiSWNlIiwiZGVzY3JpcHRpb24iOiJDb2xkIGljZSB0aGVtZSIsImNvbmZpZyI6eyJiYWNrZ3JvdW5kIjoiQmxhY2siLCJib3JkZXIiOiJDeWFuIiwidGV4dCI6IkJyaWdodFdoaXRlIiwidXNlcl9uYW1lIjoiQnJpZ2h0Q3lhbiIsImFzc2lzdGFudF9uYW1lIjoiQnJpZ2h0Qmx1ZSIsImJvcmRlcl9zdHlsZSI6IlJvdW5kZWQifX0="),
+    ("gold", "eyJuYW1lIjoiR29sZCIsImRlc2NyaXB0aW9uIjoiR29sZGVuIGx1eHVyeSB0aGVtZSIsImNvbmZpZyI6eyJiYWNrZ3JvdW5kIjoiQmxhY2siLCJib3JkZXIiOiJZZWxsb3ciLCJ0ZXh0IjoiQnJpZ2h0V2hpdGUiLCJ1c2VyX25hbWUiOiJCcmlnaHRZZWxsb3ciLCJhc3Npc3RhbnRfbmFtZSI6IkJyaWdodFJlZCIsImJvcmRlcl9zdHlsZSI6IlRoaWNrIn19"),
 ];
 
 /// Available border styles
