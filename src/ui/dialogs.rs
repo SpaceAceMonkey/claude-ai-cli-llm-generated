@@ -509,7 +509,7 @@ fn draw_color_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
     f.render_widget(instructions, dialog_layout[2]);
 }
 
-fn draw_profile_dialog(f: &mut Frame, app: &AppState, size: Rect) {
+fn draw_profile_dialog(f: &mut Frame, app: &mut AppState, size: Rect) {
     // Get the number of profiles to calculate content-based size
     let profiles = crate::config::get_all_profiles();
     let profile_count = profiles.len();
@@ -574,11 +574,17 @@ fn draw_profile_dialog(f: &mut Frame, app: &AppState, size: Rect) {
     
     // Profile list
     let profile_area = dialog_layout[1];
-    let profiles: Vec<_> = app.available_profiles.values().collect();
     
-    // Calculate visible area for scrolling
-    let visible_height = profile_area.height.saturating_sub(2) as usize; // Account for borders
+    // Calculate visible area for scrolling - use actual available height
+    let visible_height = profile_area.height.saturating_sub(2) as usize; // Subtract 2 for borders
+    
+    // Update scroll offset to keep selection visible
+    crate::handlers::events::update_profile_dialog_scroll_with_height(app, visible_height);
+    
     let scroll_offset = app.profile_dialog_scroll_offset;
+    let mut profiles: Vec<_> = app.available_profiles.values().collect();
+    // Sort profiles by name for consistent ordering
+    profiles.sort_by(|a, b| a.name.cmp(&b.name));
     
     let mut profile_items = Vec::new();
     for (i, profile) in profiles.iter().enumerate() {

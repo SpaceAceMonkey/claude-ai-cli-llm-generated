@@ -402,7 +402,8 @@ pub fn handle_profile_dialog(app: &mut AppState, code: KeyCode) {
     match code {
         KeyCode::Enter => {
             // Apply selected profile
-            let profiles: Vec<_> = app.available_profiles.values().collect();
+            let mut profiles: Vec<_> = app.available_profiles.values().collect();
+            profiles.sort_by(|a, b| a.name.cmp(&b.name));
             if app.profile_dialog_selection < profiles.len() {
                 if let Some(profile) = profiles.get(app.profile_dialog_selection) {
                     app.colors = profile.config.clone();
@@ -424,16 +425,28 @@ pub fn handle_profile_dialog(app: &mut AppState, code: KeyCode) {
             app.profile_dialog_scroll_offset = 0;
         }
         KeyCode::Up => {
+            let mut profiles: Vec<_> = app.available_profiles.values().collect();
+            profiles.sort_by(|a, b| a.name.cmp(&b.name));
+            
             if app.profile_dialog_selection > 0 {
                 app.profile_dialog_selection -= 1;
+            } else if !profiles.is_empty() {
+                // Wrap to bottom
+                app.profile_dialog_selection = profiles.len() - 1;
             }
-            update_profile_dialog_scroll(app);
+            // Note: scroll update will be handled by the UI when it renders
         }
         KeyCode::Down => {
-            if app.profile_dialog_selection < app.available_profiles.len().saturating_sub(1) {
+            let mut profiles: Vec<_> = app.available_profiles.values().collect();
+            profiles.sort_by(|a, b| a.name.cmp(&b.name));
+            
+            if app.profile_dialog_selection < profiles.len().saturating_sub(1) {
                 app.profile_dialog_selection += 1;
+            } else if !profiles.is_empty() {
+                // Wrap to top
+                app.profile_dialog_selection = 0;
             }
-            update_profile_dialog_scroll(app);
+            // Note: scroll update will be handled by the UI when it renders
         }
         KeyCode::Char('s') | KeyCode::Char('S') => {
             // Save current config as custom profile
@@ -445,9 +458,18 @@ pub fn handle_profile_dialog(app: &mut AppState, code: KeyCode) {
     }
 }
 
-fn update_profile_dialog_scroll(app: &mut AppState) {
+pub fn update_profile_dialog_scroll_with_height(app: &mut AppState, visible_height: usize) {
+    update_profile_dialog_scroll(app, visible_height);
+}
+
+fn update_profile_dialog_scroll(app: &mut AppState, visible_height: usize) {
     let total_profiles = app.available_profiles.len();
-    let visible_height = 10; // Approximate visible height, should be calculated based on dialog size
+    
+    // If we have fewer profiles than visible height, no scrolling needed
+    if total_profiles <= visible_height {
+        app.profile_dialog_scroll_offset = 0;
+        return;
+    }
     
     let current_selection = app.profile_dialog_selection;
     let scroll_offset = &mut app.profile_dialog_scroll_offset;
