@@ -6,6 +6,10 @@ A terminal-based client for interacting with Claude AI via the Anthropic API. Fe
 
 **Notable:** This entire codebase was generated through conversations with AI language models, with only minimal human intervention for file operations and git management.
 
+## ⚠️ Important Version Notice
+
+**WARNING: Version 4.0.0 contains a critical bug that causes the application to crash during window resizing, especially when resizing rapidly. If you experience crashes, please avoid rapid terminal resizing or consider using version 3.0.0 until this issue is resolved in the next release.**
+
 ## Quick Start
 
 ### Requirements
@@ -294,6 +298,38 @@ claudecli --api-key <API_KEY> \
 - Color display depends on your terminal's ANSI color support
 - Most modern terminals support all 16 colors; some older terminals may have limited support
 - VSCode's integrated terminal may automatically adjust colors for readability (e.g., preventing same-color text/background combinations)
+
+## Troubleshooting
+
+### Common Issues
+
+**Application Crashes During Resize:**
+- **Version 4.0.0 contains a known bug** that causes segmentation faults when resizing the terminal window rapidly
+- **Workaround**: Avoid rapid terminal resizing
+- **Solution**: Use version 3.0.0 or wait for the next release with the fix
+
+**API Connection Issues:**
+- Ensure your API key is valid and properly set
+- Check your internet connection
+- Verify you have sufficient API credits
+
+**Terminal Compatibility:**
+- Ensure your terminal is at least 80x24 characters
+- Some key combinations may not work in all terminal emulators
+- Try the alternative shortcuts (F3, F4, Ctrl+Alt combinations) if the primary shortcuts don't work
+
+**Color Display Problems:**
+- If colors appear incorrect, try a different terminal emulator
+- Some terminals may not support all 16 ANSI colors
+- Use the color configuration dialog to test different color combinations
+
+### Debug Mode
+
+For troubleshooting, you can enable debug logging:
+
+```bash
+RUST_LOG=debug claudecli --api-key <API_KEY>
+```
 
 ## About This Project
 
